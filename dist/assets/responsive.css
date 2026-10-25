@@ -1,4 +1,4 @@
-/* Content may wrap; reading and saving controls always keep their own space. */
+/* Equal card slots keep titles on one line and actions in their own space. */
 .app-shell, main, .card-main, .card-content, .card-footer,
 .card-footer-right, .eighth-main, .eighth-body, .eighth-bottom-right,
 .reader-heading {
@@ -14,27 +14,81 @@
   flex: 1 1 auto;
   max-width: 100%;
 }
+.cards-grid .card-main {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  height: 136px;
+  min-height: 136px;
+  padding: 16px 18px;
+}
+.cards-grid .card-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 20px 50px 20px;
+  align-content: center;
+  gap: 0;
+}
+.cards-grid .card-eyebrow {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  height: 20px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  gap: 8px;
+}
+.cards-grid .card-eyebrow > span { flex: 0 0 auto; white-space: nowrap; }
+.cards-grid .hizb-title, .eighth-card .eighth-title {
+  display: block;
+  min-width: 0;
+  height: 50px;
+  min-height: 50px;
+  margin: 0;
+  font-size: 26px;
+  line-height: 50px;
+  white-space: nowrap;
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+}
+.cards-grid .card-meta, .eighth-card .eighth-meta {
+  height: 20px;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+}
 .card-eyebrow, .card-meta, .eighth-label, .eighth-meta {
   overflow-wrap: anywhere;
 }
 .card-footer {
   flex: 0 0 auto;
-  height: auto;
-  min-height: 48px;
+  height: 56px;
+  min-height: 56px;
   margin-top: auto;
   padding: 8px 12px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
 }
 .card-footer .eighth-hint {
   min-width: 0;
   max-width: 100%;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow: hidden;
 }
 .card-footer-right {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
   max-width: 100%;
   gap: 8px;
 }
@@ -44,8 +98,7 @@
   min-height: 36px;
   font-size: 11px;
   line-height: 1.8;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
   gap: 6px;
 }
 .card-footer .save-button, .eighth-bottom .save-button {
@@ -64,22 +117,24 @@
 .list-view .card-main {
   width: 100%;
   min-width: 0;
+  height: 116px;
+  min-height: 116px;
 }
 .list-view .card-content {
   display: grid;
   grid-template-columns: minmax(0, 120px) minmax(0, 1fr) minmax(0, 140px);
+  grid-template-rows: 50px;
   gap: 12px;
 }
 .list-view .card-eyebrow, .list-view .card-meta {
   grid-area: auto;
 }
-.list-view .hizb-title {
-  white-space: normal;
-  overflow: visible;
-  overflow-wrap: anywhere;
-  text-overflow: clip;
-  line-height: 1.75;
+.list-view .card-eyebrow {
+  display: block;
+  height: auto;
+  line-height: 1.8;
 }
+.list-view .hizb-title { font-size: 27px; }
 .list-view .card-footer {
   height: auto;
   min-width: 0;
@@ -113,15 +168,43 @@
   margin: 0;
 }
 
-.eighth-main { max-width: 100%; }
-.eighth-bottom, .eighth-bottom-right {
-  flex-wrap: wrap;
-  gap: 10px;
+.eighth-card { display: flex; flex-direction: column; min-width: 0; }
+.eighth-main {
+  max-width: 100%;
+  height: 136px;
+  min-height: 136px;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 16px;
+}
+.eighth-body {
+  display: grid;
+  grid-template-rows: 18px 50px 20px 14px;
+  min-width: 0;
+}
+.eighth-label {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  line-height: 18px;
+}
+.eighth-body .partial-label { margin: 0; line-height: 14px; }
+.eighth-bottom {
+  height: 56px;
+  min-height: 56px;
+  margin-top: auto;
+  padding: 8px 14px;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.eighth-bottom-right {
+  flex-wrap: nowrap;
+  gap: 8px;
 }
 .read-action, .done-button {
   min-height: 36px;
   max-width: 100%;
-  white-space: normal;
+  white-space: nowrap;
 }
 .eighths-heading, .section-heading, .hero-stats { flex-wrap: wrap; }
 .eighths-heading { gap: 8px; }
@@ -157,15 +240,21 @@
 }
 
 @media (max-width: 1190px) {
-  .list-view .card-content { display: block; }
+  .list-view .card-main { height: 136px; min-height: 136px; }
+  .list-view .card-content {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 20px 50px 20px;
+    gap: 0;
+  }
   .list-view .card-eyebrow {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    justify-content: flex-start;
-    gap: 4px 10px;
+    justify-content: space-between;
+    gap: 8px;
+    height: 20px;
     min-height: 0;
     padding: 0;
+    line-height: 20px;
   }
   .list-view .card-eyebrow > span { display: inline; }
 }
@@ -175,10 +264,11 @@
     grid-template-columns: minmax(0, 1fr);
   }
   .list-view .card-main {
-    min-height: 0;
     padding: 16px;
   }
   .list-view .card-footer {
+    height: 56px;
+    min-height: 56px;
     padding: 8px 14px;
     border-inline-start: 0;
     border-top: 1px solid var(--line);
@@ -202,7 +292,6 @@
     display: flex;
     align-items: center;
     min-width: 0;
-    min-height: 0;
     gap: 13px;
     padding: 16px;
   }
@@ -214,29 +303,13 @@
     margin: 0;
     font-size: 17px;
   }
-  .cards-grid .card-content { display: block; }
   .cards-grid .card-eyebrow {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    min-height: 0;
-    margin: 0 0 5px;
-    padding: 0;
-    gap: 4px 10px;
     font-size: 10px;
   }
   .cards-grid .card-eyebrow > span { display: inline; font-size: 9px; }
   .cards-grid .hizb-title {
     clear: none;
-    min-height: 0;
-    margin: 5px 0;
     font-size: 26px;
-    line-height: 1.75;
-    white-space: normal;
-    overflow: visible;
-    overflow-wrap: anywhere;
-    text-overflow: clip;
   }
   .cards-grid .card-meta { font-size: 10px; }
   .cards-grid .card-footer { padding: 8px 14px; }
@@ -254,6 +327,19 @@
     justify-content: flex-start;
     gap: 6px;
   }
+}
+
+@media (max-width: 360px) {
+  .eighth-bottom {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 40px 40px;
+    height: 96px;
+    min-height: 96px;
+    gap: 0;
+  }
+  .eighth-bottom .read-action { justify-content: center; }
+  .eighth-bottom-right { justify-content: space-between; }
 }
 
 @media (max-width: 400px) {
