@@ -1,0 +1,6 @@
+research/
+node_modules/
+__pycache__/
+.openai/
+.sites-runtime/
+*.zip
