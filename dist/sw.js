@@ -2,8 +2,8 @@
 const APP_SCOPE=new URL(self.registration.scope);
 // A project may share a github.io origin with other apps: isolate this app's cache.
 const CACHE_PREFIX='athman:'+encodeURIComponent(APP_SCOPE.pathname)+':';
-const CACHE=CACHE_PREFIX+'v6';
-const FILES=['./','index.html','support.html','assets/support.css','assets/support.js','assets/style.css','assets/app.js','assets/pwa.js','assets/data.js','assets/divisions.js','assets/quran.json','assets/fonts.css','assets/ui-font-0.ttf','assets/ui-font-1.ttf','assets/ui-font-2.ttf','assets/ui-font-3.ttf','assets/warsh.ttf','assets/icon.svg','assets/icon-192.png','assets/icon-512.png','assets/icon-maskable-512.png','assets/apple-touch-icon.png','manifest.webmanifest'];
+const CACHE=CACHE_PREFIX+'v7';
+const FILES=['./','index.html','support.html','assets/support.css','assets/support.js','assets/style.css','assets/responsive.css','assets/app.js','assets/pwa.js','assets/data.js','assets/divisions.js','assets/quran.json','assets/fonts.css','assets/ui-font-0.ttf','assets/ui-font-1.ttf','assets/ui-font-2.ttf','assets/ui-font-3.ttf','assets/warsh.ttf','assets/icon.svg','assets/icon-192.png','assets/icon-512.png','assets/icon-maskable-512.png','assets/apple-touch-icon.png','manifest.webmanifest'];
 const appURL=path=>new URL(path,APP_SCOPE).href;
 self.addEventListener('install',event=>{
  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES.map(appURL))).then(()=>self.skipWaiting()));

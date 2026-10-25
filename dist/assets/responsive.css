@@ -1,0 +1,267 @@
+/* Content may wrap; reading and saving controls always keep their own space. */
+.app-shell, main, .card-main, .card-content, .card-footer,
+.card-footer-right, .eighth-main, .eighth-body, .eighth-bottom-right,
+.reader-heading {
+  min-width: 0;
+}
+
+.hizb-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.card-main {
+  flex: 1 1 auto;
+  max-width: 100%;
+}
+.card-eyebrow, .card-meta, .eighth-label, .eighth-meta {
+  overflow-wrap: anywhere;
+}
+.card-footer {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 48px;
+  margin-top: auto;
+  padding: 8px 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.card-footer .eighth-hint {
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+.card-footer-right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  max-width: 100%;
+  gap: 8px;
+}
+.card-open {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 36px;
+  font-size: 11px;
+  line-height: 1.8;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  gap: 6px;
+}
+.card-footer .save-button, .eighth-bottom .save-button {
+  flex: 0 0 36px;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+}
+
+/* The main column can shrink independently of the action column. */
+.list-view .hizb-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 144px;
+  align-items: stretch;
+}
+.list-view .card-main {
+  width: 100%;
+  min-width: 0;
+}
+.list-view .card-content {
+  display: grid;
+  grid-template-columns: minmax(0, 120px) minmax(0, 1fr) minmax(0, 140px);
+  gap: 12px;
+}
+.list-view .card-eyebrow, .list-view .card-meta {
+  grid-area: auto;
+}
+.list-view .hizb-title {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  line-height: 1.75;
+}
+.list-view .card-footer {
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 14px;
+  border: 0;
+  border-inline-start: 1px solid var(--line);
+  justify-content: center;
+}
+.list-view .card-footer-right {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.list-view .card-open {
+  max-width: 100%;
+  min-height: 40px;
+  text-align: start;
+  justify-content: center;
+}
+.list-view .card-open .icon {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+}
+.list-view .save-button {
+  margin: 0;
+}
+
+.eighth-main { max-width: 100%; }
+.eighth-bottom, .eighth-bottom-right {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.read-action, .done-button {
+  min-height: 36px;
+  max-width: 100%;
+  white-space: normal;
+}
+.eighths-heading, .section-heading, .hero-stats { flex-wrap: wrap; }
+.eighths-heading { gap: 8px; }
+.section-tools { flex-shrink: 0; }
+.eighths-heading h2 { min-width: 0; }
+
+.detail-pager {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
+}
+.detail-pager .pager-button, .reader-bottom .pager-button {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 40px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.detail-pager > span { text-align: center; }
+.reader-heading h2 { overflow-wrap: anywhere; }
+.reader-tools {
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.reader-tools > button { min-width: 36px; min-height: 36px; }
+.reader-bottom { flex-wrap: wrap; }
+.reader-bottom .pager-button { flex: 1 1 100px; }
+.reader-bottom .done-button { justify-content: center; }
+.reader-bottom .primary-button {
+  order: 1;
+  flex: 1 1 100%;
+  white-space: normal;
+}
+
+@media (max-width: 1190px) {
+  .list-view .card-content { display: block; }
+  .list-view .card-eyebrow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 4px 10px;
+    min-height: 0;
+    padding: 0;
+  }
+  .list-view .card-eyebrow > span { display: inline; }
+}
+
+@media (max-width: 760px) {
+  .cards-grid.list-view .hizb-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .list-view .card-main {
+    min-height: 0;
+    padding: 16px;
+  }
+  .list-view .card-footer {
+    padding: 8px 14px;
+    border-inline-start: 0;
+    border-top: 1px solid var(--line);
+  }
+  .list-view .card-footer-right {
+    flex-direction: row;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .list-view .card-open { justify-content: flex-start; }
+  .card-open, .read-action, .done-button { min-height: 40px; }
+  .card-footer .save-button, .eighth-bottom .save-button {
+    flex-basis: 40px; min-width: 40px; width: 40px; height: 40px;
+  }
+  .eighth-bottom .save-button { width: 40px; height: 40px; }
+}
+
+@media (max-width: 540px) {
+  .cards-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .cards-grid .card-main {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    min-height: 0;
+    gap: 13px;
+    padding: 16px;
+  }
+  .cards-grid .number-seal {
+    float: none;
+    flex: 0 0 34px;
+    width: 34px;
+    height: 34px;
+    margin: 0;
+    font-size: 17px;
+  }
+  .cards-grid .card-content { display: block; }
+  .cards-grid .card-eyebrow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    min-height: 0;
+    margin: 0 0 5px;
+    padding: 0;
+    gap: 4px 10px;
+    font-size: 10px;
+  }
+  .cards-grid .card-eyebrow > span { display: inline; font-size: 9px; }
+  .cards-grid .hizb-title {
+    clear: none;
+    min-height: 0;
+    margin: 5px 0;
+    font-size: 26px;
+    line-height: 1.75;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+  }
+  .cards-grid .card-meta { font-size: 10px; }
+  .cards-grid .card-footer { padding: 8px 14px; }
+  .reader-toolbar {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+    align-items: start;
+    gap: 8px 12px;
+  }
+  .reader-heading { grid-column: 2; grid-row: 1; }
+  .reader-tools {
+    grid-column: 1 / -1;
+    width: 100%;
+    max-width: none;
+    justify-content: flex-start;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 400px) {
+  .search-panel { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .juz-select { width: 100%; max-width: none; }
+  .division-switch button { flex-wrap: wrap; }
+}
+
+@media (max-height: 500px) {
+  .reader-toolbar, .reader-bottom { position: static; }
+}
