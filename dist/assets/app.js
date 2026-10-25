@@ -17,6 +17,8 @@ const icon=(name,cls='')=>`<svg class="icon ${cls}" aria-hidden="true"><use href
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const latin=s=>String(s).replace(/[٠-٩]/g,c=>'٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[۰-۹]/g,c=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(c));
 const displayNumber=latin;
+// Keep the Arabic ornaments RTL while the Latin digits retain their LTR order.
+const verseNumberText=n=>'\u2067﴿\u2066'+displayNumber(n)+'\u2069﴾\u2069';
 const norm=s=>latin(String(s)).normalize('NFKD').replace(/ۦ/g,'ي').replace(/ۥ/g,'و').replace(/\p{M}/gu,'').replace(/[ٱأإآ]/g,'ا').replace(/[ےى]/g,'ي').replace(/[ؤ]/g,'و').replace(/ئ/g,'ي').replace(/يي/g,'ي').replace(/ـ/g,'').replace(/[^\p{L}\p{N}\s]/gu,'').replace(/\s+/g,' ').trim().toLowerCase();
 const ordinal=n=>{
  const units=['','الأول','الثاني','الثالث','الرابع','الخامس','السادس','السابع','الثامن','التاسع','العاشر','الحادي عشر','الثاني عشر','الثالث عشر','الرابع عشر','الخامس عشر','السادس عشر','السابع عشر','الثامن عشر','التاسع عشر'];
@@ -182,7 +184,7 @@ function passageHTML(verses,e=null){
   // in the UI font, after applying the original partial-verse boundaries.
   const marker=String.fromCharCode(0xfbff+an),hasNumber=text.endsWith(marker);
   if(hasNumber)text=text.slice(0,-1).trimEnd();
-  html+=`<span class="verse" data-aya="${an}" aria-label="سورة ${sura(sn)}، الآية ${displayNumber(an)}">${esc(text)}${hasNumber?` <span class="verse-number" aria-hidden="true">﴿${displayNumber(an)}﴾</span>`:''}</span> `;
+  html+=`<span class="verse" data-aya="${an}" aria-label="سورة ${sura(sn)}، الآية ${displayNumber(an)}">${esc(text)}${hasNumber?` <span class="verse-number" dir="rtl" aria-hidden="true">﴿<bdi dir="ltr">${displayNumber(an)}</bdi>﴾</span>`:''}</span> `;
  }
  if(e&&e.endOffset!==null)html+='<span class="reader-note">ينتهي هذا '+partLabel+' داخل الآية؛ وتبدأ بقيّتها في '+partLabel+' التالي.</span>';
  return html;
@@ -200,7 +202,7 @@ async function openSurah(id){
 }
 function readerError(retry){$('#readerText').innerHTML='<div class="reader-error">تعذّر تحميل الآيات. تحقق من الاتصال.<br><button class="primary-button" id="retryReader">إعادة المحاولة</button></div>';$('#retryReader').addEventListener('click',retry)}
 function adjustFont(amount){fontSize=Math.max(22,Math.min(46,fontSize+amount));$('#readerText').style.setProperty('--quran-size',fontSize+'px');store('font',fontSize)}
-async function copyPassage(){try{const content=$('#readerText');if($('.reader-loading',content)||$('.reader-error',content)){toast('انتظر حتى تظهر الآيات');return}const text=[...content.querySelectorAll('.verse')].map(v=>{const copy=v.cloneNode(true);$('.verse-number',copy)?.remove();return copy.textContent.trim()+' ﴿'+displayNumber(v.dataset.aya)+'﴾'}).join('\n');await navigator.clipboard.writeText(text);toast('نُسخ نص القراءة')}catch{toast('تعذّر النسخ. يمكنك تحديد النص ونسخه.') }}
+async function copyPassage(){try{const content=$('#readerText');if($('.reader-loading',content)||$('.reader-error',content)){toast('انتظر حتى تظهر الآيات');return}const text=[...content.querySelectorAll('.verse')].map(v=>{const copy=v.cloneNode(true);$('.verse-number',copy)?.remove();return copy.textContent.trim()+' '+verseNumberText(v.dataset.aya)}).join('\n');await navigator.clipboard.writeText(text);toast('نُسخ نص القراءة')}catch{toast('تعذّر النسخ. يمكنك تحديد النص ونسخه.') }}
 function closeReader(navigating=false){if(!reader.open)return;reader.close();if(!navigating&&returnHash)history.replaceState(null,'',returnHash);returnHash=null;document.body.style.overflow='';readerSequence++}
 reader.addEventListener('cancel',event=>{event.preventDefault();closeReader()});
 reader.addEventListener('click',event=>{if(event.target===reader){const r=reader.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeReader()}});
