@@ -1,0 +1,253 @@
+/* Mushaf-inspired identity. Quran text and division data keep their source fonts. */
+:root {
+  --bg: #F7F3E8;
+  --paper: #FFFFFF;
+  --ink: #203A32;
+  --green: #123F35;
+  --gold: #B28A46;
+  --muted: #596B61;
+  --line: #E2DAC8;
+  --surface: #EEE8DA;
+  --sand: #F1EADB;
+  --green-soft: #E7EEE7;
+  --soft: #E7EEE7;
+  --cover: #123F35;
+  --cover-ink: #F7F3E8;
+  --cover-muted: #D6E2DA;
+  --shadow: 0 8px 24px #123F350A;
+  --ornament: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Cpath d='m32 4 8 20 20 8-20 8-8 20-8-20L4 32l20-8Z' fill='none' stroke='%23B28A46' stroke-width='.8'/%3E%3Cpath d='m0 0 32 32L64 0M0 64l32-32 32 32' fill='none' stroke='%23B28A46' stroke-width='.5'/%3E%3C/svg%3E");
+}
+[data-theme="dark"] {
+  --bg: #0E211C;
+  --paper: #172F27;
+  --ink: #F1EDDF;
+  --green: #BDD8C9;
+  --gold: #C7A366;
+  --muted: #BCC9BF;
+  --line: #3C5145;
+  --surface: #243E32;
+  --sand: #253C30;
+  --green-soft: #274638;
+  --soft: #274638;
+  --shadow: 0 8px 24px #00000020;
+}
+body { background: var(--bg); color: var(--ink); }
+::selection { background: var(--green-soft); color: var(--ink); }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
+  outline-color: var(--green);
+}
+.app-shell .topbar { background: var(--paper); }
+.brand strong, .mobile-brand, .footer-brand { color: var(--ink); }
+.brand-symbol, .brand-flower, .sidebar-rule, .section-ornament,
+.browse-sections .icon, .nav-link .icon, .search-box > .icon,
+.save-button, .page-icon { color: var(--gold); }
+.nav-label, .nav-link, .nav-link small, .icon-button, .view-toggle button,
+.search-box input::placeholder, .search-shortcut, .juz-select, .filter-chip,
+.card-eyebrow, .card-eyebrow > span, .card-meta,
+.card-footer .eighth-hint, .eighth-label, .eighth-meta, .done-button,
+.listing-note, .footer, .footer button { color: var(--muted); }
+.nav-link.active { background: var(--cover); color: var(--cover-ink); }
+.nav-link.active small { color: var(--cover-muted); }
+.nav-link.active .icon { color: var(--gold); }
+.nav-link:hover:not(.active) { background: var(--sand); color: var(--ink); }
+.riwaya span { background: var(--green); }
+.daily-card { background: var(--bg); }
+.sidebar-support { background: var(--bg); color: var(--ink); }
+
+/* A compact cover leaves the index close to the top of the page. */
+:root .hero {
+  min-height: 0;
+  padding: 24px 30px;
+  gap: 24px;
+  align-items: center;
+  border: 1px solid var(--gold);
+  border-radius: 14px;
+  background: var(--cover);
+  color: var(--cover-ink);
+}
+.hero:before {
+  inset: 6px;
+  width: auto;
+  height: auto;
+  border: 1px solid #B28A4659;
+  border-radius: 9px;
+  background: none;
+}
+.hero:after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--ornament);
+  opacity: .14;
+  mask-image: linear-gradient(to right, #000, transparent);
+}
+.hero-copy { min-width: 0; max-width: 100%; }
+.hero .eyebrow {
+  font-size: 11px;
+  line-height: 1.8;
+  letter-spacing: 0;
+  color: var(--cover-muted);
+}
+.hero .eyebrow .icon { color: var(--gold); }
+:root .hero h1 {
+  font: 400 42px/1.5 var(--serif);
+  letter-spacing: 0;
+  max-width: none;
+  margin: 2px 0 3px;
+  color: var(--cover-ink);
+}
+:root .hero-description {
+  max-width: 520px;
+  font-size: 12px;
+  line-height: 1.9;
+  color: var(--cover-muted);
+}
+.hero-art {
+  position: relative;
+  flex: 0 0 112px;
+  align-self: center;
+  min-width: 0;
+  width: 112px;
+  height: 112px;
+  margin: 0;
+  opacity: 1;
+  transform: none;
+  color: var(--gold);
+}
+.browse-sections { margin-top: 14px; }
+.browse-sections a { border-radius: 10px; }
+.browse-sections span { color: var(--ink); }
+.browse-sections a.selected {
+  background: var(--cover);
+  border-color: var(--cover);
+}
+.browse-sections a.selected span, .browse-sections a.selected b {
+  color: var(--cover-ink);
+}
+.browse-sections a.selected .icon { color: var(--gold); }
+.section-heading { margin: 24px 0 14px; }
+.section-title h2, .eighths-heading h2 {
+  font: 700 25px/1.5 var(--serif);
+  color: var(--ink);
+}
+.secondary-page-top h1, .section-heading-right h1 { color: var(--ink); }
+.section-caption { color: var(--muted); }
+.search-box:focus-within {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px #123F350D;
+}
+.search-box input { font-size: 12px; }
+.filter-chip { font-size: 11px; }
+:root .primary-button, :root .filter-chip.active,
+.division-switch button.selected {
+  background: var(--cover);
+  border-color: var(--cover);
+  color: var(--cover-ink);
+}
+
+/* The equal heights and single-line title slots live in responsive.css. */
+.hizb-card, .eighth-card {
+  border-color: var(--line);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px #123F3504;
+}
+.hizb-card:hover, .eighth-card:hover { border-color: var(--gold); }
+.cards-grid .hizb-title, .eighth-card .eighth-title { color: var(--ink); }
+.cards-grid .surah-card .hizb-title { font-family: var(--serif); }
+.number-seal { color: var(--ink); }
+.number-seal span { font: 600 16px/1 var(--font); }
+:root .number-seal:before, :root .number-seal:after { border-color: var(--gold); }
+.number-seal:before { opacity: .7; }
+.number-seal:after { opacity: .4; }
+.card-footer, .eighth-bottom { background: var(--paper); }
+:root .card-open, :root .read-action { color: var(--green); font-weight: 600; }
+.card-footer .eighth-hint .icon, .card-open .icon, .read-action .icon {
+  color: var(--gold);
+}
+.save-button.is-saved .icon { fill: #B28A4626; }
+.load-more, .breadcrumb a { color: var(--green); }
+.eighth-order { color: var(--ink); background: var(--green-soft); }
+.fraction-tag, .partial-label, .reader-note {
+  color: var(--muted);
+}
+.done-button.is-done { color: var(--green); }
+.done-button.is-done .done-box {
+  background: var(--cover);
+  border-color: var(--cover);
+}
+.progress-track span { background: var(--gold); }
+:root .detail-hero { background: var(--cover); color: var(--cover-ink); }
+.detail-title { color: var(--cover-ink); }
+.detail-kicker, .detail-meta { color: var(--cover-muted); }
+.detail-number { color: var(--cover-ink); border-color: #B28A4680; }
+.detail-hero:after { color: var(--gold); opacity: .08; }
+.detail-actions .icon-button { color: var(--cover-ink); }
+.surah-banderole { border-color: var(--line); color: var(--ink); }
+.about-copy a { color: var(--green); }
+.toast { background: var(--cover); color: var(--cover-ink); }
+
+/* The support page shares the same palette without changing its wording. */
+.support-page:before { background: none; }
+.support-page .support-card { border-color: var(--line); box-shadow: var(--shadow); }
+.support-page .card-intro { background: var(--cover); color: var(--cover-ink); }
+.support-page .eyebrow, .support-page .intro { color: var(--cover-muted); }
+.support-page .eyebrow span { color: var(--gold); }
+.support-page .card-intro h1, .support-page .card-intro h1 em {
+  color: var(--cover-ink);
+}
+.support-page .arch {
+  background: var(--cover);
+  border-color: #B28A4666;
+  box-shadow: inset 0 0 0 1px var(--gold);
+}
+.support-page .arch span, .support-page .bank-icon { color: var(--gold); }
+.support-page .message-icon, .support-page .link-field,
+.support-page .bank-value { background: var(--bg); border-color: var(--line); }
+.support-page .free-note, .support-page .bank-note {
+  background: var(--bg);
+  border-color: var(--line);
+  color: var(--ink);
+}
+.support-page .share-button { background: var(--cover); color: var(--cover-ink); }
+.support-page .share-button:hover { background: #1C5143; }
+.support-page .support-button, .support-page .close-dialog {
+  background: var(--sand);
+  border-color: var(--line);
+  color: var(--ink);
+}
+.support-page .support-button .icon { color: var(--gold); }
+.support-page .bank-header { background: var(--cover); color: var(--cover-ink); }
+.support-page .bank-header p { color: var(--cover-muted); }
+.support-page .bank-value bdi { color: var(--ink); }
+.support-page .link-field input, .support-page .bank-fields dt,
+.support-page .copy-button, .support-page .closing,
+.support-page footer, .support-page footer a { color: var(--muted); }
+.support-page .bank-note .icon { color: var(--gold); }
+
+@media (max-width: 760px) {
+  :root .hero { padding: 20px 24px; gap: 18px; }
+  :root .hero h1 { font-size: 36px; }
+  .hero-art { flex-basis: 88px; width: 88px; height: 88px; }
+}
+@media (max-width: 540px) {
+  :root .hero { padding: 18px 20px; }
+  :root .hero h1 { font-size: 32px; }
+  .hero .eyebrow { font-size: 10px; }
+  :root .hero-description { font-size: 11px; max-width: none; line-height: 1.9; }
+  .hero-art { display: none; }
+  .hero:after { width: 65%; opacity: .1; }
+  .browse-sections { margin-top: 12px; gap: 6px; }
+  .browse-sections a { padding: 8px 3px; gap: 2px; }
+  .browse-sections b { font-size: 20px; }
+  .section-heading { margin: 20px 0 12px; }
+  .section-title h2, .eighths-heading h2 { font-size: 23px; }
+  .cards-grid .card-eyebrow { font-size: 10px; }
+  .cards-grid .card-meta { font-size: 10px; }
+  .card-footer .eighth-hint { font-size: 9px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *:before, *:after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
