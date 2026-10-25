@@ -25,26 +25,12 @@ jobs:
         uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - name: Expand verified application bundle
-        run: |
-          python3 - <<'PYTHON'
-          from pathlib import Path, PurePosixPath
-          import hashlib, zipfile
-          bundle = Path('athman-github-pages.zip')
-          assert hashlib.sha256(bundle.read_bytes()).hexdigest() == '67b811e60c71fbe1595bda96f4e259bd1b81e9cca183f14e6073abae11a68b4c'
-          with zipfile.ZipFile(bundle) as archive:
-              for member in archive.infolist():
-                  name = PurePosixPath(member.filename)
-                  assert not name.is_absolute() and '..' not in name.parts
-                  assert name.parts[0] == 'athman-quran'
-              archive.extractall('_app_source')
-          PYTHON
       - name: Verify Quran divisions and app files
-        working-directory: _app_source/athman-quran
         run: |
           node --check dist/assets/app.js
           node --check dist/assets/divisions.js
           node --check dist/assets/pwa.js
+          if [ -f dist/assets/support.js ]; then node --check dist/assets/support.js; fi
           node --check dist/sw.js
           node test-divisions.cjs
           node test-pwa.cjs
@@ -54,7 +40,7 @@ jobs:
       - name: Upload app
         uses: actions/upload-pages-artifact@v4
         with:
-          path: _app_source/athman-quran/dist
+          path: dist
       - name: Deploy app
         id: deployment
         uses: actions/deploy-pages@v4
