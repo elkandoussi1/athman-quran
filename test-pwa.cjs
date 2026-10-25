@@ -43,8 +43,8 @@ function request(url,mode='same-origin',method='GET'){
 }
 (async()=>{
  await lifecycle('install');const name=(await caches.keys())[0];
- stores.set(name.replace(/v3$/,'v2'),new Map());stores.set('other-app-cache',new Map());
- await lifecycle('activate');assert(stores.has(name));assert(stores.has('other-app-cache'));assert(!stores.has(name.replace(/v3$/,'v2')));
+ stores.set(name.replace(/v\d+$/,'v0'),new Map());stores.set('other-app-cache',new Map());
+ await lifecycle('activate');assert(stores.has(name));assert(stores.has('other-app-cache'));assert(!stores.has(name.replace(/v\d+$/,'v0')));
  assert.equal(request('https://example.github.io/another-project/'),undefined);
  assert.equal(request('https://another-origin.test/file.js'),undefined);
  assert.equal(request(base+'file','same-origin','POST'),undefined);
