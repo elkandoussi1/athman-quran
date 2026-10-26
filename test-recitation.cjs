@@ -11,6 +11,8 @@ assert(variants('اَ۬لسَّمَٰوَٰتِ').includes(normalize('السما
 assert(variants('ذَٰلِكَ').includes(normalize('ذلك')));
 assert(variants('اَ۬لصَّلَوٰةَ').includes(normalize('الصلاة')));
 assert(variants('ءَامَنُواْ').includes(normalize('آمنوا')));
+// Quranic sila letters are reading marks, not obligatory ASR spelling letters.
+for(const [source,asr] of [['لَهُۥ','له'],['عَلَيْهِۦ','عليه'],['عَلَيْهِمُۥٓ','عليهم'],['بِهِۦ','به'],['شَئْاٗ','شيئا']])assert(variants(source).includes(normalize(asr)),`${source} / ${asr}`);
 // Live hypotheses are useful feedback, never confirmed verses or failed attempts.
 let s=new Session(first);
 for(let i=0;i<4;i++)assert.equal(s.feed('الحمد لله رب الناس').type,'interim');
@@ -61,4 +63,5 @@ s.skip();assert.equal(s.index,1);assert.equal(s.outcomes[0].assisted,true);
 for(const v of q){const u=unit(v),t=new Session([u]);const original=t.units[0].text;const r=t.feed(t.units[0].words.map(w=>w.forms[0]).join(' '),{final:true});assert.equal(r.type,'complete',`${v[0]}:${v[1]}`);assert.equal(t.units[0].text,original)}
 console.log('PASS: real Warsh verses; strict ordered matching; interim safety; retries; third-attempt word hints; assisted reveal; invocation and ASR word splitting.');
 require('./test-tracking.cjs');
+require('./test-live-tracking.cjs');
 require('./test-study.cjs');

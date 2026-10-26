@@ -16,7 +16,10 @@
   // Dagger alifs are orthographic: e.g. سَمَٰوَٰت / سماوات, ذَٰلِكَ / ذلك.
   let forms=[''];
   for(const c of String(raw)){
-   if(c==='ٰ')forms=[...new Set(forms.flatMap(s=>[s,s+'ا']))].slice(0,16);
+   if(c==='ٰ'||c==='ۥ'||c==='ۦ'){
+    const letter=c==='ٰ'?'ا':c==='ۥ'?'و':'ي';
+    forms=[...new Set(forms.flatMap(s=>[s,s+letter]))].slice(0,16);
+   }
    else forms=forms.map(s=>s+c);
   }
   const result=new Set();
@@ -25,6 +28,9 @@
    // Explicit Quranic spellings, without changing the displayed source text.
    word=word.replace(/صلوه$/,'صلاه').replace(/زكوه$/,'زكاه').replace(/حيوه$/,'حياه');
    if(word)result.add(word);
+   // Conventional ASR spelling gives the hamza its own ya seat in شيئًا.
+   // This is an orthographic alias for the same source word, not a riwaya swap.
+   if(/[يے]ْٔ/u.test(form)&&word.endsWith('شيا'))result.add(word.slice(0,-3)+'شييا');
   }
   return [...result];
  }
@@ -128,6 +134,26 @@
   }
   return {pos,at,count:pos-start,take:at-from,chars:heard.slice(from,at).join('').length,pairs};
  }
+ // Location evidence may bridge a small ASR gap. Only exact words contribute
+ // evidence; a bridged word is never certified as recited by this search.
+ function locateTrace(words,pos,heard,at,end){
+  const start=pos,from=at;let count=0,chars=0,edits=0,heardCount=0,pairs=[];
+  while(at<heard.length&&pos<end&&pos-start<512){
+   const run=scan(words,pos,heard,at,512-(pos-start),end);
+   count+=run.count;chars+=run.chars;heardCount+=run.take;pairs.push(...run.pairs);pos=run.pos;at=run.at;
+   if(at===heard.length||pos===end||edits===2)break;
+   const bridges=[];
+   for(let skip=0;skip<=2-edits&&pos+skip<end;skip++)for(let extra=0;extra<=2-edits&&at+extra<heard.length;extra++){
+    if(!skip&&!extra)continue;
+    const next=scan(words,pos+skip,heard,at+extra,8,end),cost=Math.max(skip,extra);
+    if(next.count>=2&&next.chars>=6)bridges.push({skip,extra,cost,...next});
+   }
+   bridges.sort((a,b)=>a.cost-b.cost||b.chars-a.chars||a.skip-b.skip);
+   const next=bridges[0];if(!next)break;
+   edits+=next.cost;pos+=next.skip;at+=next.extra;
+  }
+  return {pos,at,count,chars,edits,heardCount,pairs,take:at-from};
+ }
  class Corpus{
   constructor(units){
    const cache=new Map();
@@ -168,19 +194,20 @@
    for(let at=from;at<heard.length-(scoped?0:1);at++){
     for(const pos of this.seeds(heard,at)){
      if(pos<start||pos>=end)continue;
-     const match=scan(this.words,pos,heard,at,128,end);
+     const match=locateTrace(this.words,pos,heard,at,end);
      if(scoped){if(match.count<1||match.chars<2||match.at!==heard.length&&match.pos!==end)continue}
-     else if(match.count<3||match.chars<12&&!(match.count>=4&&match.chars>=10))continue;
-     if(heard.length-match.at>4)continue;
-     candidates.push({pos,heardStart:at,...match,endPos:match.pos,startPos:pos});
+     else if(match.edits){if(match.count<4||match.chars<16||match.heardCount/(heard.length-at)<.7)continue}
+     else if(match.count<2||match.chars<12&&!(match.count>=4&&match.chars>=10))continue;
+     if(heard.length-match.at>2)continue;
+     candidates.push({pos,heardStart:at,...match,endPos:match.pos,startPos:pos,score:match.chars+match.count*2-match.edits*6});
     }
    }
    if(!candidates.length)return {status:'waiting'};
-   candidates.sort((a,b)=>b.chars-a.chars||b.count-a.count||a.heardStart-b.heardStart);
+   candidates.sort((a,b)=>b.score-a.score||b.count-a.count||a.heardStart-b.heardStart);
    const best=candidates[0],pairs=new Set(best.pairs);
-   const alternatives=candidates.filter(c=>!c.pairs.some(p=>pairs.has(p))&&c.chars===best.chars);
+   const alternatives=candidates.filter(c=>!c.pairs.some(p=>pairs.has(p))&&c.score>=best.score-3);
    if(alternatives.length)return {status:'ambiguous',alternatives:alternatives.length+1};
-   return {status:'found',pos:best.startPos,heardStart:best.heardStart,matched:best.count,endPos:best.endPos,reference:this.reference(best.startPos)};
+   return {status:'found',pos:best.startPos,heardStart:best.heardStart,matched:best.count,edits:best.edits,score:best.score,endPos:best.endPos,reference:this.reference(best.startPos)};
   }
   search(text,{limit=40}={}){
    const value=String(text).replace(/[٠-٩]/g,c=>'٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[۰-۹]/g,c=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).trim(),reference=value.match(/^(\d{1,3})\s*[:：]\s*(\d{1,3})$/);
@@ -259,13 +286,13 @@
    const incoming=heardWords(transcript);if(!incoming.length)return {type:'empty',...this.snapshot()};
    let start=this.pos,heard=incoming,location=null;
    if(this.locating){
-    const buffer=[...this.locateBuffer,...incoming].slice(-64),found=this.corpus.locate(buffer,{start:this.start,end:this.end});
+    const buffer=[...this.locateBuffer,...incoming].slice(-512),found=this.corpus.locate(buffer,{start:this.start,end:this.end});
     if(found.status!=='found'){
      if(final)this.locateBuffer=buffer;
      return {type:'locating',ambiguous:found.status==='ambiguous',...this.snapshot()};
     }
-    if(!final)return {type:'interim',candidate:found,previewIndex:found.reference.index,previewCursor:found.reference.word,...this.snapshot()};
-    start=found.pos;heard=buffer.slice(found.heardStart);location=found.reference;this.locating=false;this.locateBuffer=[];
+    start=found.pos;heard=buffer.slice(found.heardStart);location=found.reference;
+    if(final){this.locating=false;this.locateBuffer=[]}
    }else{
     if(this.complete)return {type:'complete',...this.snapshot()};
     const first=Math.max(this.start,this.corpus.starts[this.index]);
@@ -277,11 +304,15 @@
    if(result.error!==null&&!location&&!this.strict){
     const found=this.corpus.locate(heard,{start:this.start,end:this.end});
     if(found.status==='found'&&found.matched>=4&&Math.abs(found.pos-start)>24){
-     if(!final)return {type:'interim',candidate:found,previewIndex:found.reference.index,previewCursor:found.reference.word,...this.snapshot()};
      start=found.pos;heard=heard.slice(found.heardStart);location=found.reference;result=align(this.corpus,start,heard,{end:this.end});
     }
    }
-   if(!final){const ref=this.corpus.reference(result.pos);return {type:'interim',previewIndex:result.pos===this.corpus.words.length?this.units.length:ref.index,previewCursor:ref?.word||0,previewError:result.error!==null,...this.snapshot()}}
+   if(!final){
+    const ref=this.corpus.reference(result.pos),read=result.operations.filter(op=>op.type==='read');
+    return {type:'interim',candidate:location?{pos:start,reference:location,matched:read.length,endPos:result.pos}:null,
+     preview:{startPos:start,endPos:result.pos,focusPos:read.at(-1)?.pos??start,operations:result.operations,location},
+     previewIndex:result.pos===this.corpus.words.length?this.units.length:ref.index,previewCursor:ref?.word||0,previewError:result.error!==null,...this.snapshot()};
+   }
    this.pos=result.pos;this.pending=result.pending;this.errorIndex=null;this.errorPos=null;const changed=new Set(),newErrors=new Set();
    for(const op of result.operations){
     const w=this.corpus.words[op.pos],state=this.editable(w.index);changed.add(w.index);this.focusPos=op.pos;
