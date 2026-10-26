@@ -302,23 +302,27 @@
   constructor(corpus,{index=0,word=0,start=0,end=corpus.words.length,strict=false}={}){
    this.corpus=corpus;this.units=corpus.units;this.pos=(corpus.starts[index]||0)+word;this.focusPos=this.pos;
    this.locating=false;this.locked=false;this.acquisition=null;this.locateBuffer=[];this.pending=[];this.pendingFragment=false;this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;
-   this.observations=new Map();this.provisional=new Set();this.live=null;
+   this.observations=new Map();this.provisional=new Set();this.provisionalUnverified=new Set();this.live=null;
    this.failures=new Map();this.hints=new Map();this.peeked=new Set();this.states=new Map();this.outcomes=[];this.changed=[];
    this.strict=strict;this.setRange(start,end);
   }
   get complete(){return this.pos>=this.end}
   get index(){return this.pos>=this.corpus.words.length?this.units.length:this.corpus.words[this.pos].index}
   get cursor(){return this.pos>=this.corpus.words.length?0:this.corpus.words[this.pos].word}
-  state(index){return this.states.get(index)||{read:new Set(),errors:new Map(),ignored:new Set(),complete:false,partial:false}}
-  editable(index){if(!this.states.has(index))this.states.set(index,{read:new Set(),errors:new Map(),ignored:new Set(),complete:false,partial:false});return this.states.get(index)}
+  state(index){return this.states.get(index)||{read:new Set(),errors:new Map(),unverified:new Set(),ignored:new Set(),complete:false,partial:false}}
+  editable(index){if(!this.states.has(index))this.states.set(index,{read:new Set(),errors:new Map(),unverified:new Set(),ignored:new Set(),complete:false,partial:false});return this.states.get(index)}
   setRange(start,end){this.start=Math.max(0,Math.min(this.corpus.words.length-1,Number.isInteger(start)?start:0));this.end=Math.max(this.start+1,Math.min(this.corpus.words.length,Number.isInteger(end)?end:this.corpus.words.length));if(this.pos<this.start||this.pos>=this.end){this.pos=this.start;this.focusPos=this.pos}this.pending=[];return this}
-  seek(sura,aya,word=0){const pos=this.corpus.position(sura,aya,word);if(pos===null||pos<this.start||pos>=this.end)return false;this.pos=pos;this.focusPos=pos;this.pending=[];this.pendingFragment=false;this.locating=false;this.locked=true;this.acquisition=null;this.live=null;this.provisional.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return true}
+  seek(sura,aya,word=0){const pos=this.corpus.position(sura,aya,word);if(pos===null||pos<this.start||pos>=this.end)return false;this.pos=pos;this.focusPos=pos;this.pending=[];this.pendingFragment=false;this.locating=false;this.locked=true;this.acquisition=null;this.live=null;this.provisional.clear();this.provisionalUnverified.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return true}
   endUtterance(){
    if(this.live){
     // Keep interim-only continuity across a mobile service restart. These words
     // remain provisional: they are neither read credit nor journal events.
-    for(const op of this.live.operations)if(op.type==='read')this.provisional.add(op.pos);
+    for(const op of this.live.operations){
+     if(op.type==='read'){this.provisional.add(op.pos);this.provisionalUnverified.delete(op.pos)}
+     else if(!this.provisional.has(op.pos))this.provisionalUnverified.add(op.pos);
+    }
     this.pos=Math.min(this.end-1,this.live.endPos);this.focusPos=this.live.focusPos;this.live=null;
+    if(this.errorPos!==null&&this.errorPos<this.pos){this.errorPos=null;this.errorIndex=null;this.errorSeverity=null}
    }
    if(this.acquisition){this.pos=Math.min(this.end-1,this.acquisition.lastPos??this.acquisition.pos);this.focusPos=this.acquisition.focusPos??this.pos;this.locating=false;this.acquisition=null;this.locateBuffer=[];this.pending=[];this.pendingFragment=false}
    return this.snapshot();
@@ -338,7 +342,7 @@
     hints:[...(this.hints.get(index)||[])],peeked:this.peeked.has(index),outcomes:this.outcomes.slice(),changed:this.changed.slice(),
     errorCount:pendingError+[...this.states.values()].reduce((sum,s)=>sum+s.errors.size,0)};
   }
-  beginSearch(){if(this.complete)this.pos=this.start;this.locating=true;this.locked=false;this.acquisition=null;this.locateBuffer=[];this.pending=[];this.pendingFragment=false;this.live=null;this.provisional.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return this.snapshot()}
+  beginSearch(){if(this.complete)this.pos=this.start;this.locating=true;this.locked=false;this.acquisition=null;this.locateBuffer=[];this.pending=[];this.pendingFragment=false;this.live=null;this.provisional.clear();this.provisionalUnverified.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return this.snapshot()}
   feed(transcript,{final=false,speech=false,confidence=null}={}){
    const incoming=heardWords(transcript);if(!incoming.length)return {type:'empty',...this.snapshot()};
    let start=this.pos,heard=incoming,location=null,overlap=false;
@@ -412,7 +416,10 @@
    this.pos=overlap?Math.max(this.pos,result.pos):result.pos;this.pending=speech&&!result.fragment?[]:result.pending;this.pendingFragment=result.fragment;this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;const changed=new Set(),newErrors=new Map();
    for(const op of result.operations){
     const w=this.corpus.words[op.pos],state=this.editable(w.index);changed.add(w.index);this.focusPos=op.pos;
-    if(op.type==='unheard')continue;
+    // Display traversal and recitation credit are deliberately separate.
+    // Passing a source word must not leave a blank hole in a completed line.
+    if(op.type==='unheard'){if(!state.read.has(w.word))state.unverified.add(w.word);continue}
+    state.unverified.delete(w.word);this.provisionalUnverified.delete(op.pos);
     state.ignored.delete(w.word);
     if(op.type==='error'){state.errors.set(w.word,{kind:op.kind,severity:op.severity});newErrors.set(op.pos,op.severity)}
     else{state.read.add(w.word);this.provisional.delete(op.pos);this.observations.delete(op.pos);if(speech)this.failures.delete(op.pos);if(!newErrors.has(op.pos))state.errors.delete(w.word)}

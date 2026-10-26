@@ -24,5 +24,10 @@
  }
  function isReviewed(part,completed){return eighthIds(part).every(id=>completed.has(id))}
  function setReviewed(part,completed,reviewed){for(const id of eighthIds(part)){if(reviewed)completed.add(id);else completed.delete(id)}}
- return {groupEighths,eighthIds,isReviewed,setReviewed};
+ // The mark is structural, including boundaries inside an ayah. Its source
+ // word offset must never be included among the words to be recognized.
+ function markersForVerse(eighths,unit,tokenize){
+  return eighths.filter(e=>e.sura===unit.sura&&e.aya===unit.aya).map(e=>({id:e.id,hizb:e.hizb,part:e.pos,word:tokenize(unit.text.slice(0,e.startOffset)).length}));
+ }
+ return {groupEighths,eighthIds,isReviewed,setReviewed,markersForVerse};
 });

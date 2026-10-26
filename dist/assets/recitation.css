@@ -32,6 +32,7 @@
 .recitation-page.is-masked .basmala{visibility:hidden}
 .recitation-word{color:var(--rec-ink);border-radius:12px;-webkit-text-stroke:.12px currentColor;transition:color .12s,background .12s}
 .recitation-page.is-masked .verse:not(.is-matched){color:transparent}
+.recitation-division-marker{display:inline-block;color:var(--rec-ink);font-family:var(--serif);font-size:.8em;line-height:1;vertical-align:middle;margin-inline:.08em;white-space:nowrap;user-select:none;-webkit-text-stroke:0}
 .recitation-word.is-concealed{color:transparent!important;text-shadow:none!important;user-select:none;-webkit-user-select:none}
 .recitation-word.is-concealed::selection{color:transparent;background:transparent}
 .recitation-word.is-marked{background:#D2C51C30;box-shadow:0 0 10px 5px #AFB21838}
@@ -48,6 +49,10 @@
 .recitation-legend .legend-yellow{color:#F3D76F}
 [data-recitation-theme="light"] .recitation-legend .legend-yellow{color:#765300}
 .recitation-word.is-heard:not(.is-concealed){color:var(--rec-heard)}
+.recitation-word.is-unverified:not(.is-error):not(.is-uncertain):not(.is-hint){background:#B28A461C;color:#DED4AF;text-decoration:none!important;box-shadow:none}
+[data-recitation-theme="light"] .recitation-word.is-unverified:not(.is-error):not(.is-uncertain):not(.is-hint){color:#6F5C2E;background:#B28A461C}
+.recitation-legend .legend-unverified{color:#DED4AF}
+[data-recitation-theme="light"] .recitation-legend .legend-unverified{color:#6F5C2E}
 .recitation-page.is-marking .recitation-word{cursor:crosshair}
 .recitation-page .verse-number{position:relative;display:inline-grid;place-items:center;vertical-align:middle;font:10px/1 var(--font);width:25px;height:27px;margin-inline:1px;color:var(--rec-ink);border:0;border-radius:0;white-space:nowrap}
 .recitation-page .verse-number:before{content:none}
