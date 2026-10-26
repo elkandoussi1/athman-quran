@@ -173,7 +173,7 @@ function prepareReader(kind,id){
  const hash=e?`#/hizb/${e.hizb}?view=${kind}&${cfg.query}=${id}`:`#/surahs?surah=${id}`;history.replaceState(null,'',hash);
  return ++readerSequence;
 }
-function mountRecitation(){recitationController=window.ATHMAN_RECITATION_UI.mount({reader,source:$('#readerText'),host:$('#recitationMount'),toggle:$('#recitationToggle'),fontSize})}
+function mountRecitation(){recitationController=window.ATHMAN_RECITATION_UI.mount({reader,source:$('#readerText'),host:$('#recitationMount'),toggle:$('#recitationToggle'),fontSize,contextFor:u=>getPart(readerKind,readerId)||D.eighths.findLast(e=>e.sura<u.sura||e.sura===u.sura&&e.aya<=u.aya)||{}});recitationController.open()}
 function basmala(){return '<div class="basmala">بِسْمِ اِ۬للَّهِ اِ۬لرَّحْمَٰنِ اِ۬لرَّحِيمِ</div>'}
 function passageHTML(verses,e=null){
  let html='';const partLabel=e?PARTS[e.kind||'eighth'].label:'الثمن';
@@ -187,7 +187,8 @@ function passageHTML(verses,e=null){
   // in the UI font, after applying the original partial-verse boundaries.
   const marker=String.fromCharCode(0xfbff+an),hasNumber=text.endsWith(marker);
   if(hasNumber)text=text.slice(0,-1).trimEnd();
-  html+=`<span class="verse" data-sura="${sn}" data-aya="${an}" aria-label="سورة ${sura(sn)}، الآية ${displayNumber(an)}">${esc(text)}${hasNumber?` <span class="verse-number" dir="rtl" aria-hidden="true">﴿<bdi dir="ltr">${displayNumber(an)}</bdi>﴾</span>`:''}</span> `;
+  const startWord=e&&idx===0&&e.startOffset?window.ATHMAN_RECITATION.sourceWords(raw.slice(0,e.startOffset)).length:0;
+  html+=`<span class="verse" data-sura="${sn}" data-aya="${an}" data-start-word="${startWord}" aria-label="سورة ${sura(sn)}، الآية ${displayNumber(an)}">${esc(text)}${hasNumber?` <span class="verse-number" dir="rtl" aria-hidden="true">﴿<bdi dir="ltr">${displayNumber(an)}</bdi>﴾</span>`:''}</span> `;
  }
  if(e&&e.endOffset!==null)html+='<span class="reader-note">ينتهي هذا '+partLabel+' داخل الآية؛ وتبدأ بقيّتها في '+partLabel+' التالي.</span>';
  return html;
