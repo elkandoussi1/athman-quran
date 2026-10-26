@@ -215,7 +215,7 @@
     if(!Recognition||session.complete)return;wantsAudio=true;idleEnds=0;audioReady();message('جارٍ فتح الميكروفون وخدمة التعرّف…');beginCycle();
    }else if(id==='recitationWord'){session.hint();render();currentIntoView();message('أُظهرت كلمة في موضعها للمساعدة. أعد القراءة من الموضع الحالي.')}
    else if(id==='recitationVerse'){session.peek();render();currentIntoView()}
-   else if(id==='recitationHide'){hideText=!hideText;render(true)}
+   else if(id==='recitationHide'){hideText=!hideText;render(true);message((hideText?'النص مخفي؛ تبقى مواضع الكلمات محفوظة.':'النص ظاهر كاملًا.')+(wantsAudio?' واصل التسميع.':' قد تعالج خدمة المتصفح صوتك عبر الإنترنت؛ اضغط الميكروفون للبدء.'))}
    else if(id==='recitationNumbers'){showNumbers=!showNumbers;render()}
    else if(id==='recitationSettingsClose'){setSettings(false)}
    else if(id==='recitationSmaller'){reader.querySelector('#fontSmaller').click()}
