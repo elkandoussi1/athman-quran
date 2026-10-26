@@ -38,7 +38,7 @@ if(!last||!Number.isInteger(last.id)||!getPart(last.kind,last.id))last=null;
 let mode='hizbs',query='',juz='',range=0,limit=12,view=readStore('view','grid');
 let detailKind='eighth';
 let detailId=null,readerKind=null,readerId=null,returnHash=null,readerSequence=0,quranPromise=null,toastTimeout;
-let recitationController=null;
+let recitationController=null,recitationCorpus=null;
 const main=$('#main'),reader=$('#readerDialog');
 const store=(key,value)=>{try{localStorage.setItem('athman-'+key,JSON.stringify(value))}catch{toast('تعذّر الحفظ في هذا المتصفح. يمكنك متابعة التصفح.')}};
 const seal=n=>`<span class="number-seal" aria-hidden="true"><span>${displayNumber(n)}</span></span>`;
@@ -173,7 +173,40 @@ function prepareReader(kind,id){
  const hash=e?`#/hizb/${e.hizb}?view=${kind}&${cfg.query}=${id}`:`#/surahs?surah=${id}`;history.replaceState(null,'',hash);
  return ++readerSequence;
 }
-function mountRecitation(){recitationController=window.ATHMAN_RECITATION_UI.mount({reader,source:$('#readerText'),host:$('#recitationMount'),toggle:$('#recitationToggle'),fontSize,contextFor:u=>getPart(readerKind,readerId)||D.eighths.findLast(e=>e.sura<u.sura||e.sura===u.sura&&e.aya<=u.aya)||{}});recitationController.open()}
+function mountRecitation(q){
+ if(!recitationCorpus)recitationCorpus=new window.ATHMAN_RECITATION.Corpus(q.map(([sura,aya,text])=>({sura,aya,text,label:`سورة ${suraName(sura)}، الآية ${aya}`})));
+ recitationController=window.ATHMAN_RECITATION_UI.mount({reader,source:$('#readerText'),host:$('#recitationMount'),toggle:$('#recitationToggle'),fontSize,corpus:recitationCorpus,resolveLocation:ref=>followReaderLocation(ref,q),contextFor:u=>D.eighths.findLast(e=>e.sura<u.sura||e.sura===u.sura&&e.aya<=u.aya)||{}});
+ recitationController.open();
+}
+const suraName=n=>D.surahs[n-1]?.name||'';
+function containsReadingWord(part,index,word,q){
+ if(index<part.startIndex||index>part.endIndex)return false;
+ const count=recitationCorpus.units[index].words.length;
+ const start=index===part.startIndex&&part.startOffset?window.ATHMAN_RECITATION.sourceWords(q[index][2].slice(0,part.startOffset)).length:0;
+ const end=index===part.endIndex&&part.endOffset!==null?Math.min(count,window.ATHMAN_RECITATION.sourceWords(q[index][2].slice(0,part.endOffset)).length):count;
+ return word>=start&&word<end;
+}
+function followReaderLocation(ref,q){
+ if(!reader.open)return false;
+ const kind=readerKind==='surah'?'surah':PARTS[readerKind]?readerKind:'eighth';
+ const part=kind==='surah'?null:PARTS[kind].list.find(e=>containsReadingWord(e,ref.index,ref.word,q));
+ if(kind!=='surah'&&!part)return false;
+ const id=part?part.id:ref.sura,cfg=PARTS[kind],s=kind==='surah'?D.surahs[id-1]:null;
+ readerKind=kind;readerId=id;
+ $('#readerText').innerHTML=part?passageHTML(q.slice(part.startIndex,part.endIndex+1),part):passageHTML(q.filter(v=>v[0]===id));
+ $('#readerTitle').textContent=part?part.title:'سورة '+s.name;
+ $('.reader-heading>span',reader).textContent=part?`الحزب ${ordinal(part.hizb)} · ${cfg.label} ${ordinal(part.pos)}`:`${s.revelation} · ${ayahCount(s.ayahs)} · رواية ورش`;
+ $('.reader-reference',reader).textContent=part?`سورة ${sura(part.sura)}، الآية ${part.aya} — ${sura(part.endSura)}، الآية ${part.endAya} · ترقيم ورش`:`سورة ${s.name} كاملة · ترقيم ورش`;
+ const saveHost=document.createElement('div');saveHost.innerHTML=saveButton(part?cfg.type+':'+id:'s:'+id,'الموضع');
+ $('.reader-tools .save-button',reader).replaceWith(saveHost.firstElementChild);bindCardActions($('.reader-tools',reader));
+ const bottom=$('.reader-bottom',reader);
+ bottom.innerHTML=`<button class="pager-button prev" id="readerPrev" ${id===1?'disabled':''}>${icon('arrow')} ${part?cfg.label+' السابق':'السورة السابقة'}</button>${part?doneButton(part,kind):`<a class="primary-button" href="#/hizb/${Math.ceil(s.firstEighth/8)}" data-follow-close>موضع بداية السورة ${icon('layers')}</a>`}<button class="pager-button" id="readerNext" ${id===(part?cfg.list.length:114)?'disabled':''}>${part?cfg.label+' التالي':'السورة التالية'} ${icon('arrow')}</button>`;
+ $('#readerPrev').addEventListener('click',()=>part?openPart(kind,id-1):openSurah(id-1));$('#readerNext').addEventListener('click',()=>part?openPart(kind,id+1):openSurah(id+1));
+ $('[data-follow-close]',bottom)?.addEventListener('click',()=>closeReader(true));bindDone(bottom);
+ if(part){last={kind,id,eighth:part.firstEighth||part.id,time:Date.now()};store('last',last);updateResume()}
+ history.replaceState(null,'',part?`#/hizb/${part.hizb}?view=${kind}&${cfg.query}=${id}`:`#/surahs?surah=${id}`);
+ return true;
+}
 function basmala(){return '<div class="basmala">بِسْمِ اِ۬للَّهِ اِ۬لرَّحْمَٰنِ اِ۬لرَّحِيمِ</div>'}
 function passageHTML(verses,e=null){
  let html='';const partLabel=e?PARTS[e.kind||'eighth'].label:'الثمن';
@@ -194,15 +227,15 @@ function passageHTML(verses,e=null){
  return html;
 }
 
-async function openPart(kind,id){
+async function openPart(kind,id,{listen=false}={}){
  if(!Number.isInteger(id)||id<1)return;const e=getPart(kind,id);if(!e)return;
  last={kind,id,eighth:e.firstEighth||e.id,time:Date.now()};store('last',last);updateResume();
  const seq=prepareReader(kind,id);
- try{const q=await loadQuran();if(seq!==readerSequence||!reader.open)return;$('#readerText').innerHTML=passageHTML(q.slice(e.startIndex,e.endIndex+1),e);mountRecitation()}catch{if(seq===readerSequence&&reader.open)readerError(()=>openPart(kind,id))}
+ try{const q=await loadQuran();if(seq!==readerSequence||!reader.open)return;$('#readerText').innerHTML=passageHTML(q.slice(e.startIndex,e.endIndex+1),e);mountRecitation(q);if(listen)recitationController.startListening()}catch{if(seq===readerSequence&&reader.open)readerError(()=>openPart(kind,id,{listen}))}
 }
 async function openSurah(id){
  if(!Number.isInteger(id)||id<1||id>114)return;const seq=prepareReader('surah',id);
- try{const q=await loadQuran();if(seq!==readerSequence||!reader.open)return;$('#readerText').innerHTML=passageHTML(q.filter(v=>v[0]===id));mountRecitation()}catch{if(seq===readerSequence&&reader.open)readerError(()=>openSurah(id))}
+ try{const q=await loadQuran();if(seq!==readerSequence||!reader.open)return;$('#readerText').innerHTML=passageHTML(q.filter(v=>v[0]===id));mountRecitation(q)}catch{if(seq===readerSequence&&reader.open)readerError(()=>openSurah(id))}
 }
 function readerError(retry){$('#readerText').innerHTML='<div class="reader-error">تعذّر تحميل الآيات. تحقق من الاتصال.<br><button class="primary-button" id="retryReader">إعادة المحاولة</button></div>';$('#retryReader').addEventListener('click',retry)}
 function adjustFont(amount){fontSize=Math.max(22,Math.min(46,fontSize+amount));$('#readerText').style.setProperty('--quran-size',fontSize+'px');recitationController?.updateFont(fontSize);store('font',fontSize)}
@@ -234,6 +267,7 @@ function route(){
  window.scrollTo({top:0,behavior:'instant'});
 }
 window.addEventListener('hashchange',route);
+$('#listenAnywhere').addEventListener('click',()=>openPart(last?.kind||'eighth',last?.id||1,{listen:true}));
 $('#themeButton').addEventListener('click',()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';setTheme(theme);store('theme',theme)});
 $('#menuButton').setAttribute('aria-expanded','false');$('#menuButton').setAttribute('aria-controls','sidebar');
 $('#menuButton').addEventListener('click',()=>{const open=!$('#sidebar').classList.contains('open');$('#sidebar').classList.toggle('open',open);$('#mobileShade').classList.toggle('show',open);$('#menuButton').setAttribute('aria-expanded',String(open));syncSidebar()});$('#mobileShade').addEventListener('click',closeMenu);

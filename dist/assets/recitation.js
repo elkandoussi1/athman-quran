@@ -111,5 +111,181 @@
    return this.snapshot();
   }
  }
- return {normalize,variants,heardWords,sourceWords,Session};
+ // A shared, local index of the official text. Positions are full-verse word offsets.
+ function consume(words,pos,heard,at){
+  const word=words[pos];if(!word)return null;
+  let joined='';
+  for(let n=1;n<=Math.min(5,heard.length-at);n++){joined+=heard[at+n-1];if(matches(word,joined))return {take:n,advance:1}}
+  if(words[pos+1]&&joins(word,words[pos+1],heard[at]))return {take:1,advance:2};
+  return null;
+ }
+ function scan(words,pos,heard,at,limit=24){
+  const start=pos,from=at,pairs=[];
+  while(at<heard.length&&pos<words.length&&pos-start<limit){
+   const step=consume(words,pos,heard,at);if(!step)break;
+   pairs.push(at+':'+pos);at+=step.take;pos+=step.advance;
+  }
+  return {pos,at,count:pos-start,take:at-from,chars:heard.slice(from,at).join('').length,pairs};
+ }
+ class Corpus{
+  constructor(units){
+   const cache=new Map();
+   this.units=units.map(u=>{
+    const marker=String.fromCharCode(0xfbff+u.aya),text=u.text.endsWith(marker)?u.text.slice(0,-1).trimEnd():u.text;
+    return {...u,text,words:sourceWords(text).map((raw,i)=>{
+     const opening=i<2&&openings.has(u.sura)&&(u.aya===1||u.sura===42&&u.aya===2),key=(opening?'opening:':'word:')+raw;
+     if(!cache.has(key))cache.set(key,wordInfo(raw,u,i));return {...cache.get(key)};
+    })};
+   }).filter(u=>u.words.length);
+   this.words=[];this.starts=[];this.byReference=new Map();this.byForm=new Map();
+   this.units.forEach((u,index)=>{
+    this.starts.push(this.words.length);this.byReference.set(u.sura+':'+u.aya,index);
+    u.words.forEach((w,word)=>{
+     w.index=index;w.word=word;w.pos=this.words.length;this.words.push(w);
+     for(const form of w.forms){const positions=this.byForm.get(form)||[];positions.push(w.pos);this.byForm.set(form,positions)}
+    });
+   });
+   this.starts.push(this.words.length);
+  }
+  position(sura,aya,word=0){const index=this.byReference.get(sura+':'+aya);return index===undefined?null:this.starts[index]+Math.min(Math.max(0,word),this.units[index].words.length-1)}
+  reference(pos){const word=this.words[Math.min(pos,this.words.length-1)];return word?{index:word.index,word:word.word,sura:this.units[word.index].sura,aya:this.units[word.index].aya}:null}
+  seeds(heard,at){
+   const result=new Set();let joined='';
+   for(let n=1;n<=Math.min(5,heard.length-at);n++){joined+=heard[at+n-1];for(const p of this.byForm.get(joined)||[])result.add(p)}
+   const token=heard[at];
+   for(let split=1;split<token.length;split++)for(const p of this.byForm.get(token.slice(0,split))||[])if(this.words[p+1]?.forms.includes(token.slice(split)))result.add(p);
+   return result;
+  }
+  locate(heard){
+   const candidates=[];let from=0;
+   while(from<heard.length){
+    const remaining=heard.length-from,intro=introductions.find(intro=>intro.slice(0,Math.min(intro.length,remaining)).every((w,i)=>w===heard[from+i]));
+    if(!intro)break;if(remaining<intro.length)return {status:'waiting'};from+=intro.length;
+   }
+   // Short/repeated formulas are not enough to choose a Quran location.
+   for(let at=from;at<heard.length-1;at++){
+    for(const pos of this.seeds(heard,at)){
+     const match=scan(this.words,pos,heard,at,128);
+     if(match.count<3||match.chars<12&&!(match.count>=4&&match.chars>=10))continue;
+     if(heard.length-match.at>4)continue;
+     candidates.push({pos,heardStart:at,...match,endPos:match.pos,startPos:pos});
+    }
+   }
+   if(!candidates.length)return {status:'waiting'};
+   candidates.sort((a,b)=>b.chars-a.chars||b.count-a.count||a.heardStart-b.heardStart);
+   const best=candidates[0],pairs=new Set(best.pairs);
+   const alternatives=candidates.filter(c=>!c.pairs.some(p=>pairs.has(p))&&c.chars===best.chars);
+   if(alternatives.length)return {status:'ambiguous',alternatives:alternatives.length+1};
+   return {status:'found',pos:best.startPos,heardStart:best.heardStart,matched:best.count,endPos:best.endPos,reference:this.reference(best.startPos)};
+  }
+ }
+ function anchor(words,pos,heard,at){
+  const candidates=[];
+  for(let skip=0;skip<=8&&pos+skip<words.length;skip++)for(let extra=0;extra<=4&&at+extra<heard.length;extra++){
+   if(!skip&&!extra)continue;
+   const found=scan(words,pos+skip,heard,at+extra,8);
+   if(found.count<2||found.chars<8)continue;
+   candidates.push({skip,extra,...found,cost:skip+extra});
+  }
+  candidates.sort((a,b)=>a.cost-b.cost||b.chars-a.chars||a.skip-b.skip);
+  return candidates[0]||null;
+ }
+ function align(corpus,start,heard){
+  const words=corpus.words,operations=[];let pos=start,at=0,pending=[],error=null,autoIntro=false;
+  while(at<heard.length&&pos<words.length){
+   const word=words[pos],step=consume(words,pos,heard,at);
+   if(step){for(let n=0;n<step.advance;n++)operations.push({type:'read',pos:pos+n});pos+=step.advance;at+=step.take;continue}
+   if(word.word===0&&(pos===start||corpus.units[word.index].aya===1)){
+    const remaining=heard.length-at,intro=introductions.find(intro=>intro.slice(0,Math.min(intro.length,remaining)).every((w,i)=>w===heard[at+i]));
+    if(intro){if(remaining<intro.length){pending=heard.slice(at);autoIntro=true;break}at+=intro.length;continue}
+   }
+   const tail=heard.slice(at),joinedTail=tail.join('');
+   if((word.letterNames||tail.length===1&&['و','ف','ب','ل','ك','ال','يا'].includes(tail[0]))&&word.forms.some(w=>w.startsWith(joinedTail))){pending=tail;break}
+   const next=anchor(words,pos,heard,at);
+   if(!next){error=pos;pending=tail.slice(-24);break}
+   // Resume only at an exact later anchor; skipped words remain explicit errors.
+   if(next.skip)for(let n=0;n<next.skip;n++)operations.push({type:'error',pos:pos+n,kind:next.extra?'substitution':'omission'});
+   else operations.push({type:'error',pos,kind:'extra'});
+   pos+=next.skip;at+=next.extra;
+  }
+  return {pos,operations,error,pending,autoIntro};
+ }
+ class Follower{
+  constructor(corpus,{index=0,word=0}={}){
+   this.corpus=corpus;this.units=corpus.units;this.pos=(corpus.starts[index]||0)+word;this.focusPos=this.pos;
+   this.locating=false;this.locateBuffer=[];this.pending=[];this.errorIndex=null;this.errorPos=null;
+   this.failures=new Map();this.hints=new Map();this.peeked=new Set();this.states=new Map();this.outcomes=[];this.changed=[];
+  }
+  get complete(){return this.pos>=this.corpus.words.length}
+  get index(){return this.complete?this.units.length:this.corpus.words[this.pos].index}
+  get cursor(){return this.complete?0:this.corpus.words[this.pos].word}
+  state(index){return this.states.get(index)||{read:new Set(),errors:new Map(),complete:false,partial:false}}
+  editable(index){if(!this.states.has(index))this.states.set(index,{read:new Set(),errors:new Map(),complete:false,partial:false});return this.states.get(index)}
+  snapshot(){
+   const index=this.index,unit=this.units[index];
+   return {index,total:this.units.length,cursor:this.cursor,complete:this.complete,unit,wordCount:unit?.words.length||0,
+    focusPos:this.focusPos,locating:this.locating,errorIndex:this.errorIndex,attempts:this.failures.get(this.errorPos)||0,
+    hints:[...(this.hints.get(index)||[])],peeked:this.peeked.has(index),outcomes:this.outcomes.slice(),changed:this.changed.slice(),
+    errorCount:[...this.states.values()].reduce((sum,s)=>sum+s.errors.size,0)};
+  }
+  beginSearch(){if(this.complete)this.pos=Math.max(0,this.corpus.words.length-1);this.locating=true;this.locateBuffer=[];this.pending=[];this.errorIndex=null;this.errorPos=null;this.changed=[];return this.snapshot()}
+  feed(transcript,{final=false}={}){
+   const incoming=heardWords(transcript);if(!incoming.length)return {type:'empty',...this.snapshot()};
+   let start=this.pos,heard=incoming,location=null;
+   if(this.locating){
+    const buffer=[...this.locateBuffer,...incoming].slice(-64),found=this.corpus.locate(buffer);
+    if(found.status!=='found'){
+     if(final)this.locateBuffer=buffer;
+     return {type:'locating',ambiguous:found.status==='ambiguous',...this.snapshot()};
+    }
+    if(!final)return {type:'interim',candidate:found,previewIndex:found.reference.index,previewCursor:found.reference.word,...this.snapshot()};
+    start=found.pos;heard=buffer.slice(found.heardStart);location=found.reference;this.locating=false;this.locateBuffer=[];
+   }else{
+    if(this.complete)return {type:'complete',...this.snapshot()};
+    const first=this.corpus.starts[this.index];
+    // A retry may begin at the failing word or at the start of its verse.
+    if(this.cursor>0&&!consume(this.corpus.words,start,incoming,0)&&consume(this.corpus.words,first,incoming,0))start=first;
+    else if(this.pending.length&&!consume(this.corpus.words,start,incoming,0))heard=[...this.pending,...incoming];
+   }
+   let result=align(this.corpus,start,heard);
+   if(result.error!==null&&!location){
+    const found=this.corpus.locate(heard);
+    if(found.status==='found'&&found.matched>=4&&Math.abs(found.pos-start)>24){
+     if(!final)return {type:'interim',candidate:found,previewIndex:found.reference.index,previewCursor:found.reference.word,...this.snapshot()};
+     start=found.pos;heard=heard.slice(found.heardStart);location=found.reference;result=align(this.corpus,start,heard);
+    }
+   }
+   if(!final){const ref=this.corpus.reference(result.pos);return {type:'interim',previewIndex:result.pos===this.corpus.words.length?this.units.length:ref.index,previewCursor:ref?.word||0,previewError:result.error!==null,...this.snapshot()}}
+   this.pos=result.pos;this.pending=result.pending;this.errorIndex=null;this.errorPos=null;const changed=new Set(),newErrors=new Set();
+   for(const op of result.operations){
+    const w=this.corpus.words[op.pos],state=this.editable(w.index);changed.add(w.index);this.focusPos=op.pos;
+    if(op.type==='error'){state.errors.set(w.word,{kind:op.kind});newErrors.add(op.pos)}
+    else{state.read.add(w.word);if(!newErrors.has(op.pos))state.errors.delete(w.word)}
+   }
+   if(location&&!result.operations.length)this.focusPos=start;
+   let autoHint=false;
+   if(result.error!==null){
+    const w=this.corpus.words[result.error];this.errorPos=result.error;this.errorIndex=w.word;changed.add(w.index);this.focusPos=result.error;
+    const count=Math.min(3,(this.failures.get(result.error)||0)+1);this.failures.set(result.error,count);
+    if(count===3){const hints=this.hints.get(w.index)||new Set();autoHint=!hints.has(w.word);hints.add(w.word);this.hints.set(w.index,hints)}
+   }
+   const finished=[];
+   for(const i of changed){
+    const state=this.editable(i),end=this.corpus.starts[i+1];
+    if(this.pos>=end&&(state.read.has(this.units[i].words.length-1)||state.errors.has(this.units[i].words.length-1))){
+     state.complete=true;state.partial=new Set([...state.read,...state.errors.keys()]).size<this.units[i].words.length;
+     let outcome=this.outcomes.find(o=>o.index===i);
+     if(!outcome){outcome={index:i};this.outcomes.push(outcome);finished.push(i)}
+     Object.assign(outcome,{hasErrors:state.errors.size>0,partial:state.partial,assisted:this.peeked.has(i)||(this.hints.get(i)?.size||0)>0||state.errors.size>0||state.partial});
+    }
+   }
+   this.changed=[...changed];
+   return {type:result.error!==null?'mismatch':this.complete?'complete':newErrors.size?'continued':finished.length?'matched':'progress',location,finished,continued:newErrors.size>0,autoHint,...this.snapshot()};
+  }
+  hint(){if(!this.complete){const hints=this.hints.get(this.index)||new Set();let i=this.errorIndex??this.cursor;while(i<this.units[this.index].words.length&&hints.has(i))i++;if(i<this.units[this.index].words.length)hints.add(i);this.hints.set(this.index,hints)}return this.snapshot()}
+  peek(){if(!this.complete)this.peeked.has(this.index)?this.peeked.delete(this.index):this.peeked.add(this.index);return this.snapshot()}
+  skip(){if(!this.complete){const i=this.index,outcome=this.outcomes.find(o=>o.index===i);if(outcome)outcome.assisted=true;else this.outcomes.push({index:i,assisted:true,partial:true});this.pos=this.corpus.starts[i+1];this.focusPos=this.pos;this.pending=[];this.errorIndex=null;this.errorPos=null;this.changed=[i]}return this.snapshot()}
+ }
+
+ return {normalize,variants,heardWords,sourceWords,Session,Corpus,Follower};
 });

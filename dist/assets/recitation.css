@@ -38,6 +38,8 @@
 .recitation-word.is-cursor{background:#CBD90E18;box-shadow:0 0 10px 5px #CBD90E12}
 .recitation-word.is-hint{color:var(--rec-hint);text-decoration:underline;text-decoration-color:var(--rec-accent);text-underline-offset:.18em}
 .recitation-word.is-error.is-cursor{background:#D33B2A3D;box-shadow:0 0 12px 6px #D33B2A28}
+.recitation-word.is-error{background:#F14C4333;box-shadow:0 0 0 1px #FF88794D;text-decoration:underline;text-decoration-color:var(--rec-error);text-underline-offset:.17em}
+.recitation-word.is-error:not(.is-concealed){color:var(--rec-error)!important}
 .recitation-word.is-heard:not(.is-concealed){color:var(--rec-heard)}
 .recitation-page.is-marking .recitation-word{cursor:crosshair}
 .recitation-page .verse-number{position:relative;display:inline-grid;place-items:center;vertical-align:middle;font:10px/1 var(--font);width:25px;height:27px;margin-inline:1px;color:var(--rec-ink);border:0;border-radius:0;white-space:nowrap}
