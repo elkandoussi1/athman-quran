@@ -44,7 +44,7 @@
    }
    if(painted!==s.outcomes.length)shown.scrollTop=shown.scrollHeight;
    painted=s.outcomes.length;shown.hidden=painted===0;
-   $('#recitationProgress').textContent=`${s.index} / ${s.total} ${s.complete?'· انتهى المقطع':'· آيات أُظهرت'}`;
+   $('#recitationProgress').innerHTML=`<bdi dir="ltr">${s.index} / ${s.total}</bdi> ${s.complete?'· انتهى المقطع':'· آيات أُظهرت'}`;
    const progress=$('#recitationProgressBar');progress.value=s.index;progress.max=Math.max(1,s.total);
    const current=$('#recitationCurrent');
    if(s.complete){
@@ -53,7 +53,7 @@
     stop('اكتمل المقطع. هذه مطابقة للكلمات الملتقطة، وليست حكمًا على التجويد.');
    }else{
     const hints=s.hints.map(i=>`<span class="recitation-word-hint"><small>الكلمة ${i+1}</small><b>${esc(s.unit.words[i].raw)}</b></span>`).join('');
-    current.innerHTML=`<div class="recitation-verse-label">${esc(s.unit.label)}</div>${hideText?(s.peeked?`<p class="recitation-peek">${esc(s.unit.text)}</p><span class="recitation-help-note">الآية ظاهرة للمساعدة؛ اقرأها أو تابع يدويًا.</span>`:`<div class="recitation-concealed" aria-label="الآية الحالية مخفاة">${icon('eye-off')}<span>الآية مخفاة</span></div>`):'<p class="recitation-help-note">تابع من هذه الآية في النص الظاهر أدناه.</p>'}${hints?`<div class="recitation-hints" aria-label="الكلمات المساعدة">${hints}</div>`:''}<p class="recitation-attempts">${s.errorIndex!==null?`محاولات عند الكلمة ${s.errorIndex+1}: ${s.attempts} / 3`:'بعد 3 محاولات غير متطابقة تظهر الكلمة تلقائيًا.'}</p>`;
+    current.innerHTML=`<div class="recitation-verse-label">${esc(s.unit.label)}</div>${hideText?(s.peeked?`<p class="recitation-peek">${esc(s.unit.text)}</p><span class="recitation-help-note">الآية ظاهرة للمساعدة؛ اقرأها أو تابع يدويًا.</span>`:`<div class="recitation-concealed" aria-label="الآية الحالية مخفاة">${icon('eye-off')}<span>الآية مخفاة</span></div>`):'<p class="recitation-help-note">تابع من هذه الآية في النص الظاهر أدناه.</p>'}${hints?`<div class="recitation-hints" aria-label="الكلمات المساعدة">${hints}</div>`:''}<p class="recitation-attempts">${s.errorIndex!==null?`محاولات عند الكلمة ${s.errorIndex+1}: <bdi dir="ltr">${s.attempts} / 3</bdi>`:'بعد 3 محاولات غير متطابقة تظهر الكلمة تلقائيًا.'}</p>`;
    }
    $('#recitationWord').disabled=s.complete||!hideText||s.hints.length>=s.wordCount;
    $('#recitationVerse').disabled=s.complete||!hideText;
@@ -94,7 +94,7 @@
     if(interim.length&&!session.complete){
      const p=session.feed(interim.join(' ')),s=session.snapshot();
      const n=p.previewIndex>s.index?s.wordCount:p.previewCursor;
-     $('#recitationLive').textContent=n===s.wordCount?'التُقطت كلمات الآية؛ جارٍ انتظار النتيجة النهائية…':`التقاط مباشر: ${n} / ${s.wordCount} كلمة`;
+     $('#recitationLive').innerHTML=n===s.wordCount?'التُقطت كلمات الآية؛ جارٍ انتظار النتيجة النهائية…':`التقاط مباشر: <bdi dir="ltr">${n} / ${s.wordCount}</bdi> كلمة`;
     }
    };
    rec.onnomatch=()=>{if(isCurrent(rec))message('لم يتضح الصوت. حاول مجددًا؛ لا تُحتسب هذه محاولة خاطئة.')};
