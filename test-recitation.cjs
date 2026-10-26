@@ -65,4 +65,5 @@ console.log('PASS: real Warsh verses; strict ordered matching; interim safety; r
 require('./test-tracking.cjs');
 require('./test-live-tracking.cjs');
 require('./test-stable-following.cjs');
+require('./test-speech-stream.cjs');
 require('./test-study.cjs');
