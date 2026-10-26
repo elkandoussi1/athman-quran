@@ -1,0 +1,39 @@
+.recitation-toggle{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:5px 10px;border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--green);font-size:11px;white-space:nowrap}
+.recitation-toggle .icon{width:16px;height:16px;color:var(--gold)}
+.recitation-toggle[aria-pressed="true"]{background:var(--green-soft);border-color:var(--green)}
+#recitationMount{min-width:0;--quran-size:30px}
+.recitation-panel{margin:14px 20px 20px;border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--paper);color:var(--ink)}
+.recitation-options{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:11px}
+.recitation-options strong{margin-inline-end:auto;font-size:12px;color:var(--green)}
+.recitation-options label{display:inline-flex;align-items:center;gap:5px;min-height:32px;cursor:pointer}
+.recitation-options input{accent-color:var(--cover);width:16px;height:16px}
+.recitation-disclosure{font-size:10px;line-height:1.9;color:var(--muted);margin:8px 0 14px}
+.recitation-transport,.recitation-help{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.recitation-transport>button{min-height:42px;flex:1 1 auto}
+.recitation-secondary{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:8px 12px;font-size:11px;min-height:40px}
+.recitation-secondary:disabled{opacity:.45}
+.recitation-status{min-height:40px;font-size:11px;line-height:1.9;color:var(--green);margin:12px 0 8px}
+.recitation-status:before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;margin-inline-end:7px;background:var(--muted)}
+.is-listening .recitation-status:before{background:var(--green);box-shadow:0 0 0 4px var(--green-soft)}
+.recitation-progress{display:flex;gap:12px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:10px}
+.recitation-progress progress{flex:1;min-width:80px;height:7px;accent-color:var(--cover)}
+.recitation-revealed{max-height:190px;overflow:auto;border-bottom:1px solid var(--line);margin:15px 0;padding-bottom:5px;scroll-behavior:smooth}
+.recitation-shown+.recitation-shown{border-top:1px solid var(--line);padding-top:10px}
+.recitation-verse-label{font:10px/1.9 var(--font);color:var(--muted)}
+.recitation-shown p,.recitation-peek{font:var(--quran-size)/2.1 Warsh,var(--serif);margin:5px 0 12px;overflow-wrap:break-word}
+.recitation-current{margin:16px 0 4px;padding:15px;border:1px solid var(--line);border-radius:9px;background:var(--bg);min-width:0}
+.recitation-concealed{min-height:70px;display:flex;align-items:center;justify-content:center;gap:10px;color:var(--muted);font-size:13px}
+.recitation-concealed .icon{width:22px;height:22px;color:var(--gold)}
+.recitation-attempts,.recitation-help-note{font:10px/1.9 var(--font);color:var(--muted);margin:6px 0}
+.recitation-live{font-size:10px;color:var(--muted);min-height:19px;margin:5px 0 13px}
+.recitation-help>button{flex:1 1 110px}
+.recitation-hints{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+.recitation-word-hint{display:flex;align-items:center;gap:8px;border:1px solid var(--gold);border-radius:7px;padding:4px 10px;background:var(--paper);max-width:100%}
+.recitation-word-hint small{font:9px var(--font);color:var(--muted);white-space:nowrap}
+.recitation-word-hint b{font:var(--quran-size)/1.9 Warsh,var(--serif);color:var(--ink);overflow-wrap:anywhere}
+.has-mismatch .recitation-current{border-color:#9C5D31}
+.has-mismatch .recitation-status{color:#824B28}
+[data-theme="dark"] .has-mismatch .recitation-status{color:#F0BF91}
+.recitation-finished{font:700 27px/1.5 var(--serif);color:var(--green);margin:5px 0}
+.recitation-current>p:not(.recitation-peek):not(.recitation-finished){font-size:11px}
+@media(max-width:540px){.recitation-panel{margin:12px 10px 15px;padding:13px}.recitation-options{gap:5px 10px}.recitation-options strong{width:100%;margin:0}.recitation-current{padding:12px}.recitation-help>button{font-size:10px;flex-basis:90px;padding:8px}.recitation-revealed{max-height:145px}.recitation-toggle{min-height:36px}.recitation-disclosure{font-size:10px}}
