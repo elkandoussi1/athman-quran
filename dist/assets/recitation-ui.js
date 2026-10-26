@@ -1,7 +1,6 @@
 /* Microphone use begins only after the reader presses Start. No audio is stored. */
 (function(root){
  'use strict';
- const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const icon=name=>`<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
  function mount({reader,source,host,toggle,fontSize,Recognition=root.SpeechRecognition||root.webkitSpeechRecognition}){
   const units=[...source.querySelectorAll('.verse')].map(v=>{
@@ -9,7 +8,9 @@
    return {text:clone.textContent.trim(),sura:Number(v.dataset.sura),aya:Number(v.dataset.aya),label:v.getAttribute('aria-label')};
   });
   let active=false,destroyed=false,session=null,wantsAudio=false,recognition=null,started=false;
-  let restartTimer,watchdog,idleEnds=0,painted=0,hideText=true,sound=true,audio=null;
+  let restartTimer,watchdog,idleEnds=0,painted=0,lastIndex=-1,hideText=true,sound=true,audio=null;
+  let showNumbers=true,page=null,pageVerses=[],pageWords=[],settingsButton=null,theme='dark';
+  const heading=reader.querySelector('#readerTitle'),originalHeading=heading.textContent;
   const $=s=>host.querySelector(s);
   const isCurrent=rec=>!destroyed&&active&&recognition===rec;
   const message=text=>{if($('#recitationStatus'))$('#recitationStatus').textContent=text};
@@ -25,40 +26,105 @@
    clearTimeout(watchdog);const rec=recognition;recognition=null;started=false;
    if(rec){rec.onresult=rec.onend=rec.onerror=rec.onstart=rec.onnomatch=null;try{rec.abort()}catch{}}
   }
+  function buildPage(){
+   page=source.cloneNode(true);page.id='recitationPage';page.className='recitation-page';
+   page.hidden=false;page.removeAttribute('aria-hidden');page.style.removeProperty('--quran-size');
+   pageVerses=[...page.querySelectorAll('.verse')];pageWords=[];
+   pageVerses.forEach((verse,index)=>{
+    const words=[];
+    for(const node of [...verse.childNodes]){
+     if(node.nodeType!==3)continue;
+     const fragment=document.createDocumentFragment();
+     for(const piece of node.textContent.split(/(\s+)/u)){
+      if(root.ATHMAN_RECITATION.sourceWords(piece).length){
+       const word=document.createElement('span');word.className='recitation-word';word.textContent=piece;word.dataset.word=String(words.length);fragment.append(word);words.push(word);
+      }else fragment.append(document.createTextNode(piece));
+     }
+     node.replaceWith(fragment);
+    }
+    const marker=verse.querySelector('.verse-number');
+    if(marker){const bdi=document.createElement('bdi');bdi.dir='ltr';bdi.textContent=String(units[index].aya);marker.replaceChildren(bdi)}
+    verse.dataset.recitationIndex=String(index);pageWords.push(words);
+   });
+   $('#recitationPageScroll').append(page);
+  }
+  function currentIntoView(word=null){
+   const s=session.snapshot(),el=word||pageVerses[s.index];if(!el)return;
+   const scroll=$('#recitationPageScroll'),a=el.getBoundingClientRect(),b=scroll.getBoundingClientRect();
+   if(a.top<b.top+12||a.bottom>b.bottom-12)el.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
+  }
+  function paintPage(force=false){
+   const s=session.snapshot(),assisted=new Map(s.outcomes.map(o=>[o.index,o.assisted]));
+   page.classList.toggle('is-masked',hideText);page.classList.toggle('hide-verse-numbers',!showNumbers);
+   const indices=new Set([lastIndex,s.index]);
+   if(force)pageVerses.forEach((_,i)=>indices.add(i));else for(let i=painted;i<s.index;i++)indices.add(i);
+   for(const i of indices){
+    if(!pageVerses[i])continue;
+    const current=i===s.index,done=i<s.index,hints=new Set(current?s.hints:[]);
+    pageVerses[i].classList.toggle('is-current',current);
+    pageVerses[i].classList.toggle('is-matched',done);
+    pageVerses[i].classList.toggle('is-assisted',!!assisted.get(i));
+    pageVerses[i].setAttribute('aria-label',units[i].label+(assisted.get(i)?'، بمساعدة':''));
+    pageWords[i].forEach((word,n)=>{
+     const visible=!hideText||done||current&&(s.peeked||hints.has(n));
+     word.classList.toggle('is-concealed',!visible);
+     word.classList.toggle('is-hint',current&&hints.has(n));
+     word.classList.toggle('is-cursor',current&&n===Math.min(s.cursor,s.wordCount-1));
+     word.classList.toggle('is-error',current&&n===s.errorIndex);
+     word.classList.remove('is-heard');
+     if(visible)word.removeAttribute('aria-hidden');else word.setAttribute('aria-hidden','true');
+    });
+   }
+   const u=session.units[Math.min(s.index,s.total-1)];
+   if(u)heading.textContent=u.label.split('،')[0];
+   $('#recitationPosition').textContent=s.complete?'اكتمل المقطع':u?.label||'';
+   if(lastIndex!==s.index)currentIntoView();lastIndex=s.index;painted=s.index;
+  }
+  function paintInterim(count){
+   const s=session.snapshot(),words=pageWords[s.index]||[],cursor=Math.min(count,words.length-1);
+   words.forEach((word,n)=>{word.classList.toggle('is-cursor',n===cursor);word.classList.toggle('is-heard',n<count)});
+   currentIntoView(words[cursor]);
+  }
+  function setSettings(open){
+   const panel=$('#recitationSettingsPanel');if(!panel)return;panel.hidden=!open;
+   settingsButton?.setAttribute('aria-expanded',String(open));
+   if(open)$('#recitationSettingsClose').focus();else settingsButton?.focus();
+  }
+  function setPageTheme(value){
+   theme=value==='light'?'light':'dark';reader.dataset.recitationTheme=theme;
+   try{localStorage.setItem('athman-recitation-theme',theme)}catch{}
+  }
   function paintTransport(){
    const b=$('#recitationListen');if(!b)return;
    b.disabled=!Recognition||session.complete;
    b.setAttribute('aria-pressed',String(wantsAudio));
-   b.innerHTML=icon(wantsAudio?'stop':'mic')+(session.complete?'اكتمل المقطع':wantsAudio?(started?'إيقاف الاستماع':'إيقاف / جارٍ الاتصال…'):'بدء الاستماع');
+   const label=session.complete?'اكتمل المقطع':wantsAudio?(started?'إيقاف الاستماع':'إيقاف / جارٍ الاتصال…'):'بدء الاستماع';
+   b.setAttribute('aria-label',label);b.title=label;
+   b.innerHTML=icon(session.complete?'check':wantsAudio?'stop':'mic')+`<span aria-hidden="true">${session.complete?'اكتمل':wantsAudio?(started?'أستمع':'اتصال…'):'استماع'}</span>`;
    host.classList.toggle('is-listening',wantsAudio&&started);
   }
   function stop(text){
    wantsAudio=false;clearTimeout(restartTimer);abortRecognition();paintTransport();if(text)message(text);
   }
-  function render(){
+  function render(force=false){
    if(!active||destroyed)return;
-   const s=session.snapshot(),shown=$('#recitationRevealed');
-   for(const outcome of s.outcomes.slice(painted)){
-    const u=session.units[outcome.index];
-    shown.insertAdjacentHTML('beforeend',`<div class="recitation-shown"><div class="recitation-verse-label">${esc(u.label)}${outcome.assisted?' · بمساعدة':''}</div><p>${esc(u.text)} <span class="verse-number" dir="rtl">﴿<bdi dir="ltr">${u.aya}</bdi>﴾</span></p></div>`);
-   }
-   if(painted!==s.outcomes.length)shown.scrollTop=shown.scrollHeight;
-   painted=s.outcomes.length;shown.hidden=painted===0;
-   $('#recitationProgress').innerHTML=`<bdi dir="ltr">${s.index} / ${s.total}</bdi> ${s.complete?'· انتهى المقطع':'· آيات أُظهرت'}`;
+   const s=session.snapshot();paintPage(force);
+   $('#recitationProgress').innerHTML=`<bdi dir="ltr">${s.index} / ${s.total}</bdi>`;
    const progress=$('#recitationProgressBar');progress.value=s.index;progress.max=Math.max(1,s.total);
-   const current=$('#recitationCurrent');
    if(s.complete){
     const assisted=s.outcomes.filter(o=>o.assisted).length;
-    current.innerHTML=`<p class="recitation-finished">انتهى المقطع.</p><p>دون تلميح: ${s.total-assisted} · بمساعدة: ${assisted}</p><p>يمكنك العودة إلى القراءة أو إعادة التسميع.</p>`;
-    stop('اكتمل المقطع. هذه مطابقة للكلمات الملتقطة، وليست حكمًا على التجويد.');
-   }else{
-    const hints=s.hints.map(i=>`<span class="recitation-word-hint"><small>الكلمة ${i+1}</small><b>${esc(s.unit.words[i].raw)}</b></span>`).join('');
-    current.innerHTML=`<div class="recitation-verse-label">${esc(s.unit.label)}</div>${hideText?(s.peeked?`<p class="recitation-peek">${esc(s.unit.text)}</p><span class="recitation-help-note">الآية ظاهرة للمساعدة؛ اقرأها أو تابع يدويًا.</span>`:`<div class="recitation-concealed" aria-label="الآية الحالية مخفاة">${icon('eye-off')}<span>الآية مخفاة</span></div>`):'<p class="recitation-help-note">تابع من هذه الآية في النص الظاهر أدناه.</p>'}${hints?`<div class="recitation-hints" aria-label="الكلمات المساعدة">${hints}</div>`:''}<p class="recitation-attempts">${s.errorIndex!==null?`محاولات عند الكلمة ${s.errorIndex+1}: <bdi dir="ltr">${s.attempts} / 3</bdi>`:'بعد 3 محاولات غير متطابقة تظهر الكلمة تلقائيًا.'}</p>`;
+    stop(`اكتمل المقطع. دون تلميح: ${s.total-assisted} · بمساعدة: ${assisted}.`);
    }
    $('#recitationWord').disabled=s.complete||!hideText||s.hints.length>=s.wordCount;
    $('#recitationVerse').disabled=s.complete||!hideText;
-   $('#recitationVerse').textContent=s.peeked?'إخفاء الآية':'إظهار الآية';
+   $('#recitationVerse').setAttribute('aria-label',s.peeked?'إخفاء الآية الحالية':'إظهار الآية الحالية');
+   $('#recitationVerse').classList.toggle('is-selected',s.peeked);
    $('#recitationNext').disabled=s.complete;
+   $('#recitationHide').setAttribute('aria-pressed',String(hideText));
+   $('#recitationHide').setAttribute('aria-label',hideText?'إظهار النص كاملًا':'إخفاء النص');
+   $('#recitationHide').innerHTML=icon(hideText?'eye-off':'eye')+'<span>النص</span>';
+   $('#recitationNumbers').setAttribute('aria-pressed',String(showNumbers));
+   $('#recitationAttempts').innerHTML=s.errorIndex!==null?`الكلمة ${s.errorIndex+1} · <bdi dir="ltr">${s.attempts} / 3</bdi>`:'';
    $('#recitationLive').textContent=s.complete?'':`الموضع الحالي: الكلمة ${Math.min(s.cursor+1,s.wordCount)} من ${s.wordCount}`;
    host.classList.toggle('has-mismatch',s.errorIndex!==null);paintTransport();
   }
@@ -94,6 +160,7 @@
     if(interim.length&&!session.complete){
      const p=session.feed(interim.join(' ')),s=session.snapshot();
      const n=p.previewIndex>s.index?s.wordCount:p.previewCursor;
+     paintInterim(n);
      $('#recitationLive').innerHTML=n===s.wordCount?'التُقطت كلمات الآية؛ جارٍ انتظار النتيجة النهائية…':`التقاط مباشر: <bdi dir="ltr">${n} / ${s.wordCount}</bdi> كلمة`;
     }
    };
@@ -120,14 +187,24 @@
    paintTransport();
   }
   function enable(){
-   if(active||!units.length||destroyed)return;active=true;hideText=true;sound=true;painted=0;
+   if(active||!units.length||destroyed)return;active=true;hideText=true;sound=true;painted=0;lastIndex=-1;showNumbers=true;
    session=new root.ATHMAN_RECITATION.Session(units);
-   host.innerHTML=`<section class="recitation-panel" aria-label="التسميع وإخفاء الآيات"><div class="recitation-options"><strong>تسميع تجريبي</strong><label><input id="recitationHide" type="checkbox" checked> إخفاء الآيات</label><label><input id="recitationSound" type="checkbox" checked> صوت التنبيه</label></div><p class="recitation-disclosure">مساعدة لمطابقة الكلمات، وليست تقييمًا للتجويد. قد تعالج خدمة متصفحك الصوت عبر الإنترنت؛ أثمان لا يحفظ تسجيلاتك.</p><div class="recitation-transport"><button class="primary-button" id="recitationListen" type="button"></button><button class="recitation-secondary" id="recitationReset" type="button">إعادة البدء</button></div><p class="recitation-status" id="recitationStatus" role="status" aria-live="polite"></p><div class="recitation-progress"><span id="recitationProgress"></span><progress id="recitationProgressBar"></progress></div><div class="recitation-revealed" id="recitationRevealed" aria-label="الآيات التي أُظهرت" hidden></div><div class="recitation-current" id="recitationCurrent"></div><p class="recitation-live" id="recitationLive" aria-live="off"></p><div class="recitation-help"><button class="recitation-secondary" id="recitationWord" type="button">إظهار كلمة</button><button class="recitation-secondary" id="recitationVerse" type="button">إظهار الآية</button><button class="recitation-secondary" id="recitationNext" type="button">متابعة بمساعدة</button></div></section>`;
-   source.hidden=true;source.setAttribute('aria-hidden','true');toggle.setAttribute('aria-pressed','true');toggle.setAttribute('aria-label','إنهاء التسميع والعودة إلى القراءة');toggle.innerHTML=icon('book')+'القراءة';
-   render();message(Recognition?'الآيات مخفاة. اضغط بدء الاستماع عندما تكون مستعدًا.':'التعرّف الصوتي غير مدعوم هنا. الإخفاء والتلميحات والمتابعة اليدوية متاحة.');
+   host.innerHTML=`<section class="recitation-panel" aria-label="صفحة التسميع"><div class="recitation-settings" id="recitationSettingsPanel" hidden><div class="recitation-settings-heading"><strong>إعدادات التسميع</strong><button id="recitationSettingsClose" class="icon-button" aria-label="إغلاق إعدادات التسميع">${icon('close')}</button></div><p class="recitation-disclosure">تسميع تجريبي لمطابقة الكلمات، وليس تقييمًا للتجويد. قد تعالج خدمة متصفحك الصوت عبر الإنترنت؛ أثمان لا يحفظ تسجيلاتك. بعد 3 محاولات غير متطابقة تظهر الكلمة في مكانها. ألوان المساعدة تبيّن التقدم والتلميحات وموضع التعثر.</p><div class="recitation-settings-row"><label><input id="recitationSound" type="checkbox" checked> صوت التنبيه</label><label>المظهر <select id="recitationTheme" aria-label="مظهر صفحة التسميع"><option value="dark">داكن</option><option value="light">فاتح</option></select></label></div><div class="recitation-settings-row"><span>حجم الخط</span><button class="recitation-secondary" id="recitationSmaller" aria-label="تصغير خط التسميع">أ−</button><bdi id="recitationFontSize">${fontSize}</bdi><button class="recitation-secondary" id="recitationLarger" aria-label="تكبير خط التسميع">أ+</button></div><div class="recitation-settings-actions"><button class="recitation-secondary" id="recitationNext">متابعة الآية التالية بمساعدة</button><button class="recitation-secondary" id="recitationReset">إعادة التسميع من البداية</button><button class="recitation-secondary" id="recitationPassagePrev">المقطع السابق</button><button class="recitation-secondary" id="recitationPassageNext">المقطع التالي</button></div></div><div class="recitation-position"><span id="recitationPosition"></span><span id="recitationProgress"></span></div><div class="recitation-page-scroll" id="recitationPageScroll" tabindex="0" aria-label="صفحة الآيات للتسميع"></div><div class="recitation-feedback"><p class="recitation-status" id="recitationStatus" role="status" aria-live="polite"></p><div class="recitation-live-row"><span class="recitation-live" id="recitationLive" aria-live="off"></span><span id="recitationAttempts"></span></div><progress id="recitationProgressBar" aria-label="تقدم التسميع"></progress></div><div class="recitation-dock"><button class="recitation-mic" id="recitationListen" type="button"></button><div class="recitation-dock-actions"><button class="recitation-tool" id="recitationHide" type="button"></button><button class="recitation-tool" id="recitationWord" type="button" aria-label="إظهار كلمة مساعدة">${icon('chevron')}<span>كلمة</span></button><button class="recitation-tool" id="recitationVerse" type="button" aria-label="إظهار الآية الحالية">${icon('book')}<span>آية</span></button><button class="recitation-tool" id="recitationNumbers" type="button" aria-label="إظهار أو إخفاء أرقام الآيات"><bdi>1</bdi><span>الأرقام</span></button></div></div></section>`;
+   reader.classList.add('recitation-reader');
+   try{theme=localStorage.getItem('athman-recitation-theme')||'dark'}catch{theme='dark'}
+   setPageTheme(theme);$('#recitationTheme').value=theme;
+   source.hidden=true;source.setAttribute('aria-hidden','true');toggle.setAttribute('aria-pressed','true');toggle.setAttribute('aria-label','إنهاء التسميع والعودة إلى القراءة');toggle.innerHTML=icon('book');
+   settingsButton=document.createElement('button');settingsButton.className='icon-button recitation-settings-button';settingsButton.id='recitationSettings';settingsButton.type='button';settingsButton.setAttribute('aria-label','إعدادات التسميع');settingsButton.setAttribute('aria-expanded','false');settingsButton.setAttribute('aria-controls','recitationSettingsPanel');settingsButton.innerHTML=icon('settings');settingsButton.addEventListener('click',toggleSettings);reader.querySelector('.reader-tools').append(settingsButton);
+   $('#recitationPassagePrev').disabled=reader.querySelector('#readerPrev').disabled;$('#recitationPassageNext').disabled=reader.querySelector('#readerNext').disabled;
+   buildPage();render(true);reader.scrollTop=0;
+   message(Recognition?'الآيات مخفاة. قد تعالج خدمة المتصفح صوتك عبر الإنترنت؛ اضغط الميكروفون للبدء.':'التعرّف الصوتي غير مدعوم هنا. التلميحات متاحة؛ المتابعة اليدوية في الإعدادات.');
   }
+  function toggleSettings(){setSettings($('#recitationSettingsPanel').hidden)}
   function leave(){
    stop();active=false;session=null;source.hidden=false;source.removeAttribute('aria-hidden');host.innerHTML='';host.classList.remove('has-mismatch','is-listening');
+   reader.classList.remove('recitation-reader');delete reader.dataset.recitationTheme;heading.textContent=originalHeading;
+   if(settingsButton){settingsButton.removeEventListener('click',toggleSettings);settingsButton.remove();settingsButton=null}
+   page=null;pageWords=[];pageVerses=[];
    toggle.setAttribute('aria-pressed','false');toggle.setAttribute('aria-label','تسميع وإخفاء الآيات');toggle.innerHTML=icon('mic')+'تسميع';
    if(audio){audio.close().catch(()=>{});audio=null}
   }
@@ -136,13 +213,20 @@
    if(id==='recitationListen'){
     if(wantsAudio){stop('الاستماع متوقف. يمكنك استئنافه من الموضع نفسه.');return}
     if(!Recognition||session.complete)return;wantsAudio=true;idleEnds=0;audioReady();message('جارٍ فتح الميكروفون وخدمة التعرّف…');beginCycle();
-   }else if(id==='recitationWord'){session.hint();render();message('أُظهرت كلمة للمساعدة. يبقى إظهار الآية تلقائيًا مشروطًا بمطابقة كلماتها.')}
-   else if(id==='recitationVerse'){session.peek();render()}
+   }else if(id==='recitationWord'){session.hint();render();currentIntoView();message('أُظهرت كلمة في موضعها للمساعدة. أعد القراءة من الموضع الحالي.')}
+   else if(id==='recitationVerse'){session.peek();render();currentIntoView()}
+   else if(id==='recitationHide'){hideText=!hideText;render(true)}
+   else if(id==='recitationNumbers'){showNumbers=!showNumbers;render()}
+   else if(id==='recitationSettingsClose'){setSettings(false)}
+   else if(id==='recitationSmaller'){reader.querySelector('#fontSmaller').click()}
+   else if(id==='recitationLarger'){reader.querySelector('#fontLarger').click()}
+   else if(id==='recitationPassagePrev'){reader.querySelector('#readerPrev').click()}
+   else if(id==='recitationPassageNext'){reader.querySelector('#readerNext').click()}
    else if(id==='recitationNext'){stop();session.skip();render();if(!session.complete)message('انتقلتَ بمساعدة؛ هذه الآية لم تُحتسب تسميعًا دون تلميح.')}
-   else if(id==='recitationReset'){stop();session=new root.ATHMAN_RECITATION.Session(units);painted=0;$('#recitationRevealed').innerHTML='';render();message('أُعيد المقطع إلى البداية. اضغط بدء الاستماع عندما تكون مستعدًا.')}
+   else if(id==='recitationReset'){stop();session=new root.ATHMAN_RECITATION.Session(units);painted=0;lastIndex=-1;render(true);$('#recitationPageScroll').scrollTop=0;message('أُعيد المقطع إلى البداية. اضغط الميكروفون عندما تكون مستعدًا.')}
   }
   function handleChange(event){
-   if(event.target.id==='recitationHide'){hideText=event.target.checked;source.hidden=hideText;source.setAttribute('aria-hidden',String(hideText));render()}
+   if(event.target.id==='recitationTheme'){setPageTheme(event.target.value)}
    if(event.target.id==='recitationSound'){sound=event.target.checked;if(sound&&wantsAudio)audioReady()}
   }
   function toggleMode(){active?leave():enable()}
@@ -152,7 +236,7 @@
   document.addEventListener('visibilitychange',hidden);root.addEventListener('pagehide',pagehide);
   host.style.setProperty('--quran-size',fontSize+'px');
   return {
-   updateFont(size){host.style.setProperty('--quran-size',size+'px')},
+   updateFont(size){fontSize=size;host.style.setProperty('--quran-size',size+'px');if($('#recitationFontSize'))$('#recitationFontSize').textContent=String(size)},
    destroy(){if(destroyed)return;leave();destroyed=true;toggle.removeEventListener('click',toggleMode);host.removeEventListener('click',handleClick);host.removeEventListener('change',handleChange);document.removeEventListener('visibilitychange',hidden);root.removeEventListener('pagehide',pagehide)}
   };
  }
