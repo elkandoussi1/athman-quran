@@ -64,4 +64,5 @@ for(const v of q){const u=unit(v),t=new Session([u]);const original=t.units[0].t
 console.log('PASS: real Warsh verses; strict ordered matching; interim safety; retries; third-attempt word hints; assisted reveal; invocation and ASR word splitting.');
 require('./test-tracking.cjs');
 require('./test-live-tracking.cjs');
+require('./test-stable-following.cjs');
 require('./test-study.cjs');
