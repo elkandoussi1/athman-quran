@@ -18,10 +18,12 @@
   <link rel="stylesheet" href="assets/responsive.css">
   <link rel="stylesheet" href="assets/theme.css">
   <link rel="stylesheet" href="assets/recitation.css">
+  <link rel="stylesheet" href="assets/study.css">
   <script src="assets/data.js" defer></script>
   <script src="assets/divisions.js" defer></script>
   <script src="assets/recitation.js" defer></script>
   <script src="assets/recitation-ui.js" defer></script>
+  <script src="assets/study.js" defer></script>
   <script src="assets/app.js" defer></script>
   <script src="assets/pwa.js" defer></script>
 </head>
@@ -83,6 +85,7 @@
     <a class="nav-link" data-nav="surahs" href="#/surahs"><svg class="icon"><use href="#i-book"/></svg><span>سور القرآن الكريم</span><small>114</small></a>
     <div class="nav-divider"></div>
     <a class="nav-link" data-nav="saved" href="#/saved"><svg class="icon"><use href="#i-bookmark"/></svg><span>مواضعي المحفوظة</span><span class="saved-dot" id="savedDot" hidden></span></a>
+    <button class="nav-link" id="practiceOpen"><svg class="icon"><use href="#i-check"/></svg><span>جلساتي ومواضع المراجعة</span></button>
     <button class="nav-link install-entry" data-install-open><svg class="icon"><use href="#i-install"/></svg><span>تثبيت التطبيق</span></button>
   </nav>
   <div class="sidebar-bottom">
@@ -98,6 +101,7 @@
   <footer class="footer"><a href="#/" class="footer-brand">أَثْمَان <span>۞</span></a><p>لصحبةٍ أقرب مع القرآن الكريم</p><button id="footerAbout">المصادر وطريقة التقسيم</button></footer>
 </div>
 <dialog class="reader-dialog" id="readerDialog" aria-labelledby="readerTitle"><div id="readerContent"></div></dialog>
+<dialog class="study-dialog" id="studyDialog" aria-labelledby="studyTitle"></dialog>
 <dialog class="about-dialog" id="aboutDialog" aria-labelledby="aboutTitle"><button class="icon-button dialog-close" id="aboutClose" aria-label="إغلاق"><svg class="icon"><use href="#i-close"/></svg></button><div class="about-logo">۞</div><h2 id="aboutTitle">أَثْمَان</h2><p class="about-subtitle">دليلٌ يقرّب إليك أحزاب القرآن وتقسيماته.</p><div class="about-copy"><h3>التقسيم والترقيم</h3><p>ستون حزبًا، في كل حزب نصفان وأربعة أرباع وثمانية أثمان. النصف ربعان وأربعة أثمان، والربع ثمنان. يعتمد الفهرس تقسيم المصحف المحمدي المتداول في المغرب. أرقام الآيات وفق العدّ المدني لرواية ورش، وقد تختلف عن أرقام مصاحف حفص.</p><p>يُسمّى الحزب الأول «الم» في الفهرس، ويشمل سورة الفاتحة. بعض الأثمان تبدأ داخل آية، ويُبيّن الفهرس هذه المواضع.</p><h3>مصادر البيانات</h3><p>حدود الأثمان وفهارس السور من مشروع <a href="https://github.com/smartmaker-devs/nuralhifz-data" target="_blank" rel="noopener">بيانات المصحف المحمدي</a>، المنسوب إلى نور الدين الأحمدي، بترخيص <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. اختُصرت بدايات الآيات لتصبح عناوين في الفهرس.</p><p>نص القراءة وخط ورش من <a href="https://qurancomplex.gov.sa/techquran/dev/" target="_blank" rel="noopener">مجمع الملك فهد لطباعة المصحف الشريف</a>، إصدار UthmanicWarsh v2.1.</p><h3>مواضعك ترافقك</h3><p>تُحفظ الإشارات وآخر موضع قراءة وإعدادات العرض في هذا المتصفح. يمكنك حفظ أي حزب أو نصف أو ربع أو ثمن أو سورة. تسجيل مراجعة نصف أو ربع يحدّث تلقائيًا الأثمان التي يضمّها.</p></div><button class="primary-button about-done" id="aboutDone">تصفّح الأحزاب <svg class="icon"><use href="#i-arrow"/></svg></button></dialog>
 <dialog class="install-dialog" id="installDialog" aria-labelledby="installTitle"><button class="icon-button dialog-close" id="installClose" aria-label="إغلاق تعليمات التثبيت"><svg class="icon"><use href="#i-close"/></svg></button><img class="install-logo" src="assets/icon-192.png" alt="أيقونة أثمان" width="72" height="72"><h2 id="installTitle">أثمان على هاتفك</h2><p class="install-intro">أضف التطبيق إلى شاشتك الرئيسية، وافتحه بأيقونته الخاصة.</p><div id="installNative" hidden><button class="primary-button" id="installConfirm">تثبيت أثمان <svg class="icon"><use href="#i-install"/></svg></button></div><div id="installInstructions"><div data-install-platform="android"><h3>على أندرويد</h3><p>افتح الرابط في Chrome، ثم افتح قائمة المتصفح ⋮ واختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».</p></div><div data-install-platform="ios"><h3>على iPhone وiPad</h3><p>افتح الرابط في Safari، واضغط «مشاركة»، ثم اختر «إضافة إلى الشاشة الرئيسية».</p></div><div data-install-platform="desktop"><h3>على الحاسوب</h3><p>افتح الرابط في Chrome أو Edge، ثم استخدم خيار «تثبيت التطبيق» من قائمة المتصفح أو شريط العنوان.</p></div></div><p class="install-note">بعد اكتمال التحميل الأول، تُحفظ ملفات القراءة على جهازك للاستخدام دون اتصال.</p></dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>

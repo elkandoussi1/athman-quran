@@ -57,3 +57,14 @@ follower.beginSearch();r=follower.feed(phrase(36,12,3,12),{final:true});assert.e
 follower=new Follower(corpus);follower.beginSearch();r=follower.feed(phrase(2,281,25,55),{final:true});assert.equal(r.location.sura,2);assert.equal(r.location.aya,281);
 assert.equal(r.location.word,25);
 console.log(`PASS: Quran-wide unique location; repeated-verse ambiguity; interim safety; continuing past substitutions/omissions; chunk-boundary recovery; unrecited words remain uncredited. ${Math.round(performance.now()-started)} ms including full-corpus index.`);
+// A chosen passage can disambiguate a short phrase without leaving its bounds.
+const scopedCorpus=new Corpus([{sura:1,aya:1,text:'الحمد لله رب العالمين'},{sura:1,aya:2,text:'الرحمن الرحيم'},{sura:2,aya:1,text:'الحمد لله رب العالمين'}]);
+const scoped=new Follower(scopedCorpus,{start:0,end:4});scoped.beginSearch();
+assert.equal(scoped.feed('الحمد',{final:true}).type,'progress');assert.equal(scoped.cursor,1);
+assert.equal(scoped.feed('لله رب العالمين الرحمن الرحيم',{final:true}).complete,true);assert.equal(scoped.pos,4);assert.equal(scoped.state(1).read.size,0);
+const bounded=new Follower(scopedCorpus,{start:2,end:4});bounded.beginSearch();bounded.feed('رب العالمين',{final:true});assert.equal(bounded.complete,true);assert.equal(bounded.state(0).read.has(0),false);
+const strict=new Follower(small,{strict:true});strict.feed('الحمد لله رب الناس الرحمن الرحيم',{final:true});assert.equal(strict.index,0);assert.equal(strict.cursor,3);assert.equal(strict.state(1).read.size,0);
+strict.ignoreWord(0,3);assert.equal(strict.state(0).ignored.has(3),true);assert.equal(strict.state(0).read.has(3),false);assert.equal(strict.pos,4);
+const matchesText=corpus.search('ولا تجادلوا أهل الكتاب');assert(matchesText.some(r=>r.sura===29&&r.aya===46));
+assert.equal(corpus.search('٢٩:٤٦')[0].aya,46);assert.deepEqual(corpus.search('999:1'),[]);
+console.log('PASS: scoped recitation stays within exact word boundaries; short scoped speech; strict correction mode; false-flag dismissal without machine certification; global text and verse-reference search.');

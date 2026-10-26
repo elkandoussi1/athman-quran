@@ -38,7 +38,9 @@ if(!last||!Number.isInteger(last.id)||!getPart(last.kind,last.id))last=null;
 let mode='hizbs',query='',juz='',range=0,limit=12,view=readStore('view','grid');
 let detailKind='eighth';
 let detailId=null,readerKind=null,readerId=null,returnHash=null,readerSequence=0,quranPromise=null,toastTimeout;
-let recitationController=null,recitationCorpus=null;
+let recitationController=null,recitationCorpus=null,studyPanel=null;
+let studyStorage;try{studyStorage=localStorage}catch{}
+const practiceStore=new window.ATHMAN_STUDY.Store(studyStorage);
 const main=$('#main'),reader=$('#readerDialog');
 const store=(key,value)=>{try{localStorage.setItem('athman-'+key,JSON.stringify(value))}catch{toast('تعذّر الحفظ في هذا المتصفح. يمكنك متابعة التصفح.')}};
 const seal=n=>`<span class="number-seal" aria-hidden="true"><span>${displayNumber(n)}</span></span>`;
@@ -175,7 +177,7 @@ function prepareReader(kind,id){
 }
 function mountRecitation(q){
  if(!recitationCorpus)recitationCorpus=new window.ATHMAN_RECITATION.Corpus(q.map(([sura,aya,text])=>({sura,aya,text,label:`سورة ${suraName(sura)}، الآية ${aya}`})));
- recitationController=window.ATHMAN_RECITATION_UI.mount({reader,source:$('#readerText'),host:$('#recitationMount'),toggle:$('#recitationToggle'),fontSize,corpus:recitationCorpus,resolveLocation:ref=>followReaderLocation(ref,q),contextFor:u=>D.eighths.findLast(e=>e.sura<u.sura||e.sura===u.sura&&e.aya<=u.aya)||{}});
+ recitationController=window.ATHMAN_RECITATION_UI.mount({reader,source:$('#readerText'),host:$('#recitationMount'),toggle:$('#recitationToggle'),fontSize,corpus:recitationCorpus,study:practiceStore,onJournalOpen:openJournal,resolveLocation:ref=>followReaderLocation(ref,q),contextFor:u=>D.eighths.findLast(e=>e.sura<u.sura||e.sura===u.sura&&e.aya<=u.aya)||{}});
  recitationController.open();
 }
 const suraName=n=>D.surahs[n-1]?.name||'';
@@ -267,6 +269,8 @@ function route(){
  window.scrollTo({top:0,behavior:'instant'});
 }
 window.addEventListener('hashchange',route);
+function openJournal(){closeMenu();recitationController?.pause();if(!studyPanel)studyPanel=window.ATHMAN_STUDY.mount({dialog:$('#studyDialog'),store:practiceStore,data:D,openReference:async ref=>{await openSurah(ref.sura);recitationController?.focusReference(ref)}});studyPanel.open()}
+$('#practiceOpen').addEventListener('click',openJournal);
 $('#listenAnywhere').addEventListener('click',()=>openPart(last?.kind||'eighth',last?.id||1,{listen:true}));
 $('#themeButton').addEventListener('click',()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';setTheme(theme);store('theme',theme)});
 $('#menuButton').setAttribute('aria-expanded','false');$('#menuButton').setAttribute('aria-controls','sidebar');

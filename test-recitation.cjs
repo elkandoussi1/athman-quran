@@ -61,3 +61,4 @@ s.skip();assert.equal(s.index,1);assert.equal(s.outcomes[0].assisted,true);
 for(const v of q){const u=unit(v),t=new Session([u]);const original=t.units[0].text;const r=t.feed(t.units[0].words.map(w=>w.forms[0]).join(' '),{final:true});assert.equal(r.type,'complete',`${v[0]}:${v[1]}`);assert.equal(t.units[0].text,original)}
 console.log('PASS: real Warsh verses; strict ordered matching; interim safety; retries; third-attempt word hints; assisted reveal; invocation and ASR word splitting.');
 require('./test-tracking.cjs');
+require('./test-study.cjs');
