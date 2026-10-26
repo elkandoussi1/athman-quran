@@ -28,7 +28,7 @@ const caches={
  async open(name){
   if(!stores.has(name))stores.set(name,new Map());const data=stores.get(name);
   return {
-   async addAll(urls){for(const url of urls){assert(url.startsWith(base));let rel=url.slice(base.length)||'index.html';const file=path.join('dist',rel);assert(fs.existsSync(file),`Missing offline asset ${rel}`);data.set(url,new Response(fs.readFileSync(file)))}},
+   async addAll(urls){for(const input of urls){assert.equal(input.cache,'reload','New app versions must bypass stale HTTP assets');const url=keyOf(input);assert(url.startsWith(base));let rel=url.slice(base.length)||'index.html';const file=path.join('dist',rel);assert(fs.existsSync(file),`Missing offline asset ${rel}`);data.set(url,new Response(fs.readFileSync(file)))}},
    async match(input){return data.get(keyOf(input))?.clone()},
    async put(input,response){data.set(keyOf(input),response.clone())}
   };
@@ -36,7 +36,7 @@ const caches={
  async keys(){return [...stores.keys()]},async delete(name){return stores.delete(name)}
 };
 const self={registration:{scope:base},addEventListener:(name,fn)=>listeners[name]=fn,skipWaiting:async()=>{},clients:{claim:async()=>{}}};
-vm.runInNewContext(fs.readFileSync('dist/sw.js','utf8'),{self,caches,URL,Response,fetch:async request=>{if(!online)throw Error('Offline');return new Response('network response',{status:200})}});
+vm.runInNewContext(fs.readFileSync('dist/sw.js','utf8'),{self,caches,URL,Request,Response,fetch:async(request,options)=>{assert.equal(options?.cache,'no-cache','Online requests must revalidate the browser HTTP cache');if(!online)throw Error('Offline');return new Response('network response',{status:200})}});
 function lifecycle(name){let result;listeners[name]({waitUntil:promise=>result=promise});return result}
 function request(url,mode='same-origin',method='GET'){
  let response;listeners.fetch({request:{url,mode,method},respondWith:promise=>response=promise});return response;
