@@ -22,7 +22,7 @@
 #recitationSave .icon{width:24px;height:27px}
 #recitationSave[aria-pressed="true"]{color:#C7D4A8}
 .recitation-position,.recitation-feedback{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip-path:inset(50%);white-space:nowrap;border:0!important}
-.recitation-page-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;width:100%;max-width:1000px;margin-inline:auto;scrollbar-width:none;outline-offset:-3px}
+.recitation-page-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;touch-action:pan-y pinch-zoom;width:100%;max-width:1000px;margin-inline:auto;scrollbar-width:none;outline-offset:-3px}
 .recitation-page-scroll::-webkit-scrollbar{display:none}
 .recitation-page{--rec-type:calc(var(--quran-size,30px)*.84);font:var(--rec-type)/1.86 Warsh,var(--serif);color:var(--rec-ink);text-align:justify;direction:rtl;overflow-wrap:break-word;word-spacing:0;padding:5px 8px 20px;min-height:100%;border-inline-start:double 4px #94968F;}
 .recitation-page.is-masked{background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(var(--rec-type)*1.86 - 1px),var(--rec-rule) calc(var(--rec-type)*1.86 - 1px),var(--rec-rule) calc(var(--rec-type)*1.86));background-position:0 5px}
@@ -59,6 +59,11 @@
 .recitation-counters{display:flex;gap:8px;align-items:center;height:26px;max-width:100%}
 .recitation-counters button{display:flex;align-items:center;justify-content:center;gap:5px;height:26px;min-width:44px;border:0;border-radius:18px;padding:2px 9px;background:var(--rec-button);color:var(--rec-ink);font:12px/1.3 var(--serif);white-space:nowrap;box-shadow:0 2px 4px #0003}
 .recitation-counters .icon{width:20px;height:20px}
+.recitation-timer{display:inline-flex;align-items:center;gap:8px;height:26px;padding:2px 9px;border-radius:18px;background:var(--rec-button);color:var(--rec-ink);font:12px/1.3 var(--font);white-space:nowrap;box-shadow:0 2px 4px #0003}
+.recitation-timer[hidden]{display:none}
+.recitation-timer-dot{width:10px;height:10px;flex:0 0 10px;border-radius:50%;background:#D15F80;opacity:.5}
+.is-listening .recitation-timer-dot{opacity:1;animation:recitation-timer-pulse 1.6s ease-in-out infinite}
+@keyframes recitation-timer-pulse{50%{opacity:.5}}
 #recitationHintCount{font-size:10px}
 #recitationSummary{gap:5px;padding-inline:9px}
 #recitationSummary>span{opacity:.4}
@@ -112,6 +117,8 @@
  .recitation-dock-actions{gap:5px}
  .recitation-tool{padding:7px}
  .recitation-hint{padding:7px}
+ .recitation-counters{gap:6px}
+ .recitation-timer{gap:6px;padding-inline:7px;font-size:11px}
 }
 @media(max-height:500px){
  .recitation-header{min-height:46px;padding-block:2px}
@@ -126,4 +133,5 @@
  .recitation-popover{top:49px;max-height:calc(100% - 115px)}
  .recitation-notice{bottom:68px}
 }
-@media(prefers-reduced-motion:reduce){.recitation-word,.recitation-mic{transition:none}}
+@media(max-width:540px) and (max-height:500px){.recitation-dock-left{flex-direction:column;gap:5px}}
+@media(prefers-reduced-motion:reduce){.recitation-word,.recitation-mic{transition:none}.recitation-timer-dot{animation:none!important}}

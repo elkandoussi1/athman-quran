@@ -177,10 +177,18 @@ function prepareReader(kind,id){
 }
 function mountRecitation(q){
  if(!recitationCorpus)recitationCorpus=new window.ATHMAN_RECITATION.Corpus(q.map(([sura,aya,text])=>({sura,aya,text,label:`سورة ${suraName(sura)}، الآية ${aya}`})));
- recitationController=window.ATHMAN_RECITATION_UI.mount({reader,source:$('#readerText'),host:$('#recitationMount'),toggle:$('#recitationToggle'),fontSize,corpus:recitationCorpus,study:practiceStore,onJournalOpen:openJournal,resolveLocation:ref=>followReaderLocation(ref,q),contextFor:u=>D.eighths.findLast(e=>e.sura<u.sura||e.sura===u.sura&&e.aya<=u.aya)||{}});
+ recitationController=window.ATHMAN_RECITATION_UI.mount({reader,source:$('#readerText'),host:$('#recitationMount'),toggle:$('#recitationToggle'),fontSize,corpus:recitationCorpus,study:practiceStore,onJournalOpen:openJournal,resolveLocation:ref=>followReaderLocation(ref,q),adjacentReference:direction=>adjacentReaderReference(direction,q),contextFor:u=>D.eighths.findLast(e=>e.sura<u.sura||e.sura===u.sura&&e.aya<=u.aya)||{}});
  recitationController.open();
 }
 const suraName=n=>D.surahs[n-1]?.name||'';
+function adjacentReaderReference(direction,q){
+ if(!reader.open||![-1,1].includes(direction))return null;
+ const id=readerId+direction;
+ if(readerKind==='surah'){const pos=recitationCorpus.position(id,1);return pos===null?null:recitationCorpus.reference(pos)}
+ const part=PARTS[readerKind]?getPart(readerKind,id):null;if(!part)return null;
+ const word=part.startOffset?window.ATHMAN_RECITATION.sourceWords(q[part.startIndex][2].slice(0,part.startOffset)).length:0;
+ return recitationCorpus.reference(recitationCorpus.starts[part.startIndex]+word);
+}
 function containsReadingWord(part,index,word,q){
  if(index<part.startIndex||index>part.endIndex)return false;
  const count=recitationCorpus.units[index].words.length;
