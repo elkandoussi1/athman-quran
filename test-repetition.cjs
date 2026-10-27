@@ -17,6 +17,27 @@ for(const token of text){r=f.feed(token,final);assert.equal(r.type,'repeated');a
 assert.equal(f.replay,null);assert.equal(f.outcomes.length,1);assert.equal(f.state(idx(29,46)).read.size,text.length);
 r=f.feed(next.slice(0,4).join(' '),final);assert.equal(r.repetition,null);assert.equal(f.pos,frontier+4);assert.equal(r.errorCount,0);
 c.locate=locate;
+// Regression: a service-dropped word inside an established repeat used to
+// flag word 0 of the NEXT ayah. Recovery stays inside previously traversed text.
+f=new Follower(c);f.seek(29,46);f.feed(text.join(' '),final);f.feed(text.slice(0,3).join(' '),final);
+r=f.feed(text.slice(4,8).join(' '),final);assert.equal(r.type,'repeated');assert.equal(r.errorCount,0);assert.equal(r.events.length,0);assert.equal(f.pos,frontier);
+assert.deepEqual(r.repetition.positions,Array.from({length:4},(_,n)=>at(29,46,4+n)));assert.equal(f.replay.pos,at(29,46,8));
+// A specific wrong/extra ASR token is not credited or replayed as old noise.
+r=f.feed(['ضجيج',...text.slice(9,12)].join(' '),final);assert.equal(r.errorCount,0);assert.equal(f.pos,frontier);assert(!r.repetition.positions.includes(at(29,46,8)));assert.equal(r.events.length,0);
+const replayPos=f.replay.pos;r=f.feed('كلام بعيد غير واضح',final);assert.equal(r.type,'unclear');assert.equal(r.errorCount,0);assert.equal(f.pos,frontier);assert.equal(f.replay.pos,replayPos);assert.equal(f.pending.length,0);assert.equal(f.speechTail.length,0);
+r=f.feed(text.slice(12,15).join(' '),final);assert.equal(r.type,'repeated');assert.equal(r.errorCount,0);
+r=f.feed(next.slice(0,3).join(' '),final);assert.equal(f.pos,frontier+3);assert.equal(f.replay,null);assert.equal(r.repetition,null);assert.equal(r.errorCount,0);
+// A strong repeat prefix with a noisy trailing token waits in the repeat,
+// instead of assigning that token to the next ayah's first word.
+f=new Follower(c);f.seek(29,46);f.feed(text.join(' '),final);
+r=f.feed([...text.slice(0,3),'ضجيج'].join(' '),final);assert.equal(r.type,'repeated');assert.equal(r.errorCount,0);assert.equal(f.replay.pos,at(29,46,3));assert.equal(f.pending.length,0);
+// Recoverable live gaps remain provisional over a service interruption.
+f=new Follower(c);f.seek(29,46);f.feed(text.join(' '),final);f.feed(text.slice(0,3).join(' '),final);
+r=f.feed(text.slice(4,8).join(' '),live);assert.equal(r.preview.repetition.positions.length,4);assert.equal(f.replay.pos,at(29,46,3));f.endUtterance();assert.equal(f.pos,frontier);assert.equal(f.replay.pos,at(29,46,8));
+r=f.feed(text.slice(8,10).join(' '),final);assert.equal(r.type,'repeated');assert.equal(r.events.length,0);assert.equal(r.errorCount,0);
+// A gap in a repeat cannot turn an unverified first-pass word into read credit.
+f=new Follower(c);f.seek(29,46);f.feed(text.filter((_,i)=>i!==3).join(' '),final);f.feed(text.slice(0,3).join(' '),final);f.feed(text.slice(4,8).join(' '),final);
+assert.equal(f.state(idx(29,46)).read.has(3),false);assert.equal(f.state(idx(29,47)).read.size,0);assert.equal(f.snapshot().errorCount,0);
 // An interim-only natural service restart keeps the independent repeat cursor.
 f=new Follower(c);f.seek(29,46);f.feed(text.join(' '),final);f.feed(text.slice(0,3).join(' '),live);f.endUtterance();
 assert.equal(f.pos,frontier);r=f.feed(text.slice(3,6).join(' '),final);assert.equal(r.type,'repeated');assert.equal(r.repetition.positions[0],at(29,46,3));assert.equal(r.errorCount,0);
@@ -60,4 +81,10 @@ let feeds=0;const feed=f.feed.bind(f);f.feed=(...args)=>{feeds++;return feed(...
 stream.update([three]);stream.update([three]);assert.equal(choices,1);assert.equal(feeds,1,'An exact top alternative needs one live alignment, not three probes plus alignment');assert.equal(f.states.size,0);
 stream.update([a]);const guarded={length:2,get 0(){throw Error('Immutable final prefix was re-read')},1:result(next.slice(0,3).join(' '))};
 batch=stream.update(guarded);assert(batch.preview);assert.equal(stream.finalCursor,1);
-console.log('PASS: immediate local ayah repetition; long/split/cumulative repeats; independent restart cursor; monotonic progress; no duplicate credit or remote jumps; reversible feedback; scope/Warsh authority; cached alternatives and skipped immutable finals.');
+// Empty final slots are settled once without speech credit. Later updates
+// must not read that immutable prefix again, including after withdrawing live text.
+f=new Follower(c);f.seek(29,46);stream=new SpeechInput(f);const empty=result('',true);
+stream.update([result(text.slice(0,3).join(' '))]);batch=stream.update([empty]);assert.equal(batch.changed,true);assert.equal(batch.preview,null);assert.equal(batch.commits.length,0);assert.equal(f.live,null);assert.equal(f.states.size,0);assert.equal(stream.finalCursor,1);
+const afterEmpty={length:2,get 0(){throw Error('Empty settled final prefix was re-read')},1:result(text.slice(0,3).join(' '))};
+batch=stream.update(afterEmpty);assert.equal(batch.preview.operations.length,3);assert.equal(f.snapshot().errorCount,0);
+console.log('PASS: immediate local ayah repetition; long/split/cumulative repeats; independent restart cursor; monotonic progress; no duplicate credit or remote jumps; reversible feedback; scope/Warsh authority; cached alternatives, skipped empty/immutable finals, and bounded noisy-repeat recovery.');

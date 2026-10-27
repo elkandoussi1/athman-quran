@@ -298,6 +298,27 @@
   }
   return table[skip][extra].ops;
  }
+ function repeatTrace(words,start,heard,from,end){
+  let pos=start,at=from,chars=0,edits=0;const positions=[];
+  while(pos<end&&at<heard.length){
+   const run=scan(words,pos,heard,at,512,end);
+   for(let p=pos;p<run.pos;p++)positions.push(p);
+   chars+=run.chars;pos=run.pos;at=run.at;
+   if(pos===end||at===heard.length||edits>=2)break;
+   const anchors=[];
+   for(let skip=0;skip<=2-edits&&pos+skip<end;skip++)for(let extra=0;extra<=2-edits&&at+extra<heard.length;extra++){
+    if(!skip&&!extra)continue;const next=scan(words,pos+skip,heard,at+extra,8,end);
+    if(next.count>=2&&next.chars>=6)anchors.push({skip,extra,cost:Math.max(skip,extra),...next});
+   }
+   anchors.sort((a,b)=>a.cost-b.cost||b.chars-a.chars||a.skip-b.skip);
+   let next=anchors[0];
+   if(next&&anchors[1]&&next.cost===anchors[1].cost&&next.chars===anchors[1].chars&&next.pos!==anchors[1].pos)break;
+   if(!next){const single=immediateAnchor(words,pos,heard,at,end);if(single&&single.skip<=2-edits)next={...single,cost:single.skip}}
+   if(!next)break;
+   edits+=next.cost;pos+=next.skip;at+=next.extra;
+  }
+  return {pos,at,chars,positions,count:positions.length};
+ }
  function repeatedRun(corpus,frontier,heard,at,{start=0,end=corpus.words.length,replay=null,wasRead=()=>false}={}){
   // Repetition is local feedback, never a second Quran-wide location search.
   // Consider only the current/previous ayah, or a pinned unfinished repetition.
@@ -309,12 +330,15 @@
   }
   const found=[];
   for(const [p,pinned] of candidates){
-   const run=scan(corpus.words,p,heard,at,512,Math.min(frontier,end));
+   const limit=Math.min(frontier,end),exact=scan(corpus.words,p,heard,at,512,limit);
+   const established=pinned||exact.count>=2&&exact.chars>=8;
+   const run=established&&exact.at<heard.length&&exact.pos<limit?repeatTrace(corpus.words,p,heard,at,limit):{...exact,positions:Array.from({length:exact.count},(_,n)=>p+n)};
    // A unique exact short word may give feedback immediately. This path adds
    // no read credit, and ties between local ayahs still wait for more words.
-   if(!run.count||!pinned&&run.chars<2)continue;
-   if(run.at<heard.length&&run.pos<frontier)continue;
-   found.push({...run,start:p,pinned});
+   if(!pinned&&(!run.count||run.chars<2))continue;
+   const unclear=run.at<heard.length&&run.pos<frontier;
+   if(unclear&&!established)continue;
+   found.push({...run,start:p,pinned,unclear});
   }
   found.sort((a,b)=>b.count-a.count||b.chars-a.chars||Number(b.pinned)-Number(a.pinned));
   if(!found.length)return null;
@@ -331,8 +355,9 @@
     // Prefer normal forward reading unless a longer exact phrase disambiguates
     // an ayah that begins with the same word as the next one.
     if(repeat&&(!step||repeat.count>=2&&repeat.chars>=8&&repeat.count>scan(words,pos,heard,at,512,end).count)){
-     for(let p=repeat.start;p<repeat.pos;p++)repeated.push(p);
+     repeated.push(...repeat.positions);
      at=repeat.at;nextReplay=repeat.pos<pos?{pos:repeat.pos,frontier:pos}:null;
+     if(repeat.unclear){repeatAmbiguous=true;break}
      continue;
     }
    }
@@ -566,11 +591,11 @@
     const signature=JSON.stringify(Array.from(result).slice(0,3).map(a=>[a?.transcript,a?.confidence]));
     const cached=this.choices.get(i),chosen=cached?.signature===signature&&cached.prefix===prefix&&cached.context===context?cached.chosen:this.choose(result,prefix);
     this.choices.set(i,{signature,prefix,context,chosen});
-    if(!chosen.transcript.trim())continue;hadSpeech=true;
+    const hasText=!!chosen.transcript.trim();if(hasText)hadSpeech=true;
     if(result.isFinal){
      this.finals.add(i);this.choices.clear();while(this.finals.has(this.finalCursor))this.finalCursor++;
-     commits.push(this.follower.feed(chosen.transcript,{final:true,speech:true,confidence:chosen.confidence}));
-    }else{parts.push(chosen.transcript);if(chosen.confidence!==null)confidences.push(chosen.confidence)}
+     if(hasText)commits.push(this.follower.feed(chosen.transcript,{final:true,speech:true,confidence:chosen.confidence}));
+    }else if(hasText){parts.push(chosen.transcript);if(chosen.confidence!==null)confidences.push(chosen.confidence)}
    }
    for(const i of this.choices.keys())if(i>=results.length)this.choices.delete(i);
    const key=parts.join('\n'),changed=commits.length>0||key!==this.liveKey;this.liveKey=key;

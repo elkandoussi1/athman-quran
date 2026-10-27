@@ -195,7 +195,7 @@
    repeatVerses=indices;
    const ref=repetition?corpus.reference(repetition.focusPos):null,local=ref?(pageLocal.get(ref.index)??-1):undefined;
    const next=pageWords[local]?.[ref?.word-units[local]?.startWord]||null;
-   if(next!==repeatCursor){repeatCursor?.classList.remove('is-repeat-cursor');next?.classList.add('is-repeat-cursor');repeatCursor=next}
+   if(next!==repeatCursor){repeatCursor?.classList.remove('is-repeat-cursor');next?.classList.add('is-repeat-cursor');repeatCursor=next;if(next)currentIntoView(next)}
    if(indices.size)message('أتابع إعادة الآية بالأخضر. يبقى تقدّمك محفوظًا؛ واصل القراءة عندما تتذكر.');
   }
   function setSettings(open){
