@@ -77,11 +77,12 @@
   return {raw,forms:[...new Set(forms)],letterNames:opening};
  }
  const introductions=['أعوذ بالله من الشيطان الرجيم','بسم الله الرحمن الرحيم'].map(heardWords);
+ const openingVocabulary=new Set([...introductions.flat(),'باسم','الرحمان','الشيطن','اعود','اعوز','اعوذو','فاستعذ','لله','ولله','فلله','والله','فالله','وبالله']);
  // These aliases belong to the opening invocation only. They never change
  // Quran word variants or certify الرحيم as the different source word الرجيم.
  const openingForms=[...new Set([
-  ...['اعوذ','اعود','اعوز'].flatMap(first=>['الرجيم','الرحيم'].map(last=>[first,'بالله','من','الشيطان',last])),
-  ...['الرحمن','الرحمان'].map(middle=>['بسم','الله',middle,'الرحيم'])
+  ...['اعوذ','اعود','اعوز','اعوذو'].flatMap(first=>['الرجيم','الرحيم'].flatMap(last=>['الشيطان','الشيطن'].map(middle=>[first,'بالله','من',middle,last]))),
+  ...['بسم','باسم'].flatMap(first=>['الرحمن','الرحمان'].map(middle=>[first,'الله',middle,'الرحيم']))
  ].flatMap(words=>words.slice(0,-1).map((_,i)=>words.slice(i).join(''))))];
  function openingBoundary(heard){
   let from=0,introduction=false;
@@ -104,13 +105,13 @@
    // Quran-location anchor; keep the following ayah words available intact.
    if(fragment){
     const text=heard.slice(from,from+fragment).join(''),next=heard[from+fragment];
-    const strong=text.includes('الشيطان')||/^(اعوذ|اعود|اعوز)بالله|^بسمالله/u.test(text);
+    const strong=text.includes('الشيطان')||/^(اعوذ|اعود|اعوز|اعوذو)بالله|^با?سمالله/u.test(text);
     const restart=fragment>=2&&next&&openingForms.some(form=>form.startsWith(next));
     if(strong||restart){from+=fragment;introduction=true;continue}
    }
    break;
   }
-  const explicit=/^(اعوذ|اعود|اعوز)بالله|^بسمالله/u.test(heard.slice(0,from).join(''));
+  const explicit=/^(اعوذ|اعود|اعوز|اعوذو)بالله|^با?سمالله/u.test(heard.slice(0,from).join(''));
   return {from,waiting:introduction&&from===heard.length,introduction,explicit};
  }
  class Session{
@@ -238,6 +239,18 @@
     });
    });
    this.starts.push(this.words.length);
+   // Initial location must be supported by actual ayah context, not by a
+   // formula that an ASR service can spell, truncate or split in many ways.
+   // Mark the source spans once; these masks never alter displayed/read words.
+   this.openingPositions=new Set();
+   for(const text of ['بالله من الشيطان الرجيم','من الشيطان الرجيم','الشيطان الرجيم','بسم الله الرحمن الرحيم','الله الرحمن الرحيم','الرحمن الرحيم']){
+    const heard=heardWords(text);
+    for(const p of this.seeds(heard,0)){
+     const run=scan(this.words,p,heard,0,16);if(run.at!==heard.length)continue;
+     for(let n=p;n<run.pos;n++)this.openingPositions.add(n);
+     if(heard[0]==='بالله'&&this.words[p-1]?.forms.includes('فاستعذ'))this.openingPositions.add(p-1);
+    }
+   }
   }
   position(sura,aya,word=0){const index=this.byReference.get(sura+':'+aya);return index===undefined?null:this.starts[index]+Math.min(Math.max(0,word),this.units[index].words.length-1)}
   reference(pos){const word=this.words[Math.min(pos,this.words.length-1)];return word?{index:word.index,word:word.word,sura:this.units[word.index].sura,aya:this.units[word.index].aya}:null}
@@ -249,37 +262,39 @@
    return result;
   }
   locate(heard,{start=0,end=this.words.length}={}){
-   const candidates=[];let from=0,openingFrom=0;
+   const candidates=[];let from=0,openingFrom=0,openingOnly=false;
    const scoped=start>0||end<this.words.length;
-   if(!scoped){const opening=openingBoundary(heard);if(opening.waiting)return {status:'waiting',invocation:true};if(opening.explicit)from=opening.from;else openingFrom=opening.from}
+   const opening=openingBoundary(heard);if(opening.waiting)return {status:'waiting',invocation:true};if(opening.explicit)from=opening.from;else openingFrom=opening.from;
    // Short/repeated formulas are not enough to choose a Quran location.
    for(let at=from;at<heard.length-(scoped?0:1);at++){
     for(const pos of this.seeds(heard,at)){
      if(pos<start||pos>=end)continue;
      const match=locateTrace(this.words,pos,heard,at,end);
-     let evidenceCount=match.count,evidenceChars=match.chars,evidenceHeard=match.heardCount;
-     if(at<openingFrom){
-      // A bare invocation suffix can also be real Quran text. Preserve that
-      // source start only when distinct words OUTSIDE the opening support it.
-      evidenceCount=0;evidenceChars=0;evidenceHeard=0;
-      for(const pair of match.pairs){
-       const [h,p]=pair.split(':').map(Number);if(h<openingFrom)continue;
-       const step=consume(this.words,p,heard,h);evidenceCount+=step.advance;evidenceHeard+=step.take;evidenceChars+=heard.slice(h,h+step.take).join('').length;
+     let evidenceCount=0,evidenceChars=0,distinctive=0,formula=false;
+     for(const pair of match.pairs){
+      const [h,p]=pair.split(':').map(Number),step=consume(this.words,p,heard,h),eligible=[];
+      for(let n=p;n<p+step.advance;n++){
+       if(this.openingPositions.has(n)){formula=true;continue}
+       if(h>=openingFrom){eligible.push(n);if(!this.words[n].forms.some(form=>openingVocabulary.has(form)))distinctive++}
       }
+      evidenceCount+=eligible.length;
+      const chars=heard.slice(h,h+step.take).join('').length;
+      evidenceChars+=eligible.length===step.advance?chars:Math.min(chars,eligible.reduce((sum,n)=>sum+this.words[n].forms[0].length,0));
      }
-     if(scoped){if(match.count<1||match.chars<2||match.at!==heard.length&&match.pos!==end)continue}
-     else if(match.edits){if(evidenceCount<4||evidenceChars<16||evidenceHeard/(heard.length-Math.max(at,openingFrom))<.7)continue}
+     if(match.count&&!distinctive){openingOnly=true;continue}
+     if(scoped&&!formula){if(evidenceCount<1||evidenceChars<2||match.at!==heard.length&&match.pos!==end)continue}
+     else if(match.edits){if(evidenceCount<4||evidenceChars<16||match.heardCount/(heard.length-at)<.7)continue}
      else if(evidenceCount<2||evidenceChars<12&&!(evidenceCount>=4&&evidenceChars>=10))continue;
      if(heard.length-match.at>2)continue;
-     candidates.push({pos,heardStart:at,...match,endPos:match.pos,startPos:pos,score:match.chars+match.count*2-match.edits*6});
+     candidates.push({pos,heardStart:at,...match,endPos:match.pos,startPos:pos,evidenceCount,score:match.chars+match.count*2-match.edits*6});
     }
    }
-   if(!candidates.length)return {status:'waiting'};
+   if(!candidates.length)return {status:'waiting',invocation:openingOnly};
    candidates.sort((a,b)=>b.score-a.score||b.count-a.count||a.heardStart-b.heardStart);
    const best=candidates[0],pairs=new Set(best.pairs);
    const alternatives=candidates.filter(c=>!c.pairs.some(p=>pairs.has(p))&&c.score>=best.score-3);
    if(alternatives.length)return {status:'ambiguous',alternatives:alternatives.length+1};
-   return {status:'found',pos:best.startPos,heardStart:best.heardStart,matched:best.count,edits:best.edits,score:best.score,endPos:best.endPos,reference:this.reference(best.startPos)};
+   return {status:'found',pos:best.startPos,heardStart:best.heardStart,matched:best.count,evidenceCount:best.evidenceCount,edits:best.edits,score:best.score,endPos:best.endPos,reference:this.reference(best.startPos)};
   }
   search(text,{limit=40}={}){
    const value=String(text).replace(/[٠-٩]/g,c=>'٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[۰-۹]/g,c=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(c)).trim(),reference=value.match(/^(\d{1,3})\s*[:：]\s*(\d{1,3})$/);
@@ -425,17 +440,23 @@
   constructor(corpus,{index=0,word=0,start=0,end=corpus.words.length,strict=false}={}){
    this.corpus=corpus;this.units=corpus.units;this.pos=(corpus.starts[index]||0)+word;this.focusPos=this.pos;
    this.locating=false;this.locked=false;this.acquisition=null;this.locateBuffer=[];this.pending=[];this.pendingFragment=false;this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;
-   this.observations=new Map();this.provisional=new Set();this.provisionalUnverified=new Set();this.live=null;this.replay=null;this.speechTail=[];this.speechTailPos=null;
+   this.observations=new Map();this.provisional=new Set();this.provisionalUnverified=new Set();this.live=null;this.replay=null;this.speechTail=[];this.speechTailPos=null;this.manualAnchor=false;
    this.failures=new Map();this.hints=new Map();this.peeked=new Set();this.states=new Map();this.outcomes=[];this.changed=[];
    this.strict=strict;this.setRange(start,end);
   }
   get complete(){return this.pos>=this.end}
   get index(){return this.pos>=this.corpus.words.length?this.units.length:this.corpus.words[this.pos].index}
   get cursor(){return this.pos>=this.corpus.words.length?0:this.corpus.words[this.pos].word}
+  canResume(){
+   if(this.manualAnchor||this.acquisition?.evidenceCount>0)return true;
+   for(const [index,state] of this.states)for(const word of state.read)if(!this.corpus.openingPositions.has(this.corpus.starts[index]+word))return true;
+   for(const pos of this.provisional)if(!this.corpus.openingPositions.has(pos))return true;
+   return false;
+  }
   state(index){return this.states.get(index)||{read:new Set(),errors:new Map(),unverified:new Set(),ignored:new Set(),complete:false,partial:false}}
   editable(index){if(!this.states.has(index))this.states.set(index,{read:new Set(),errors:new Map(),unverified:new Set(),ignored:new Set(),complete:false,partial:false});return this.states.get(index)}
   setRange(start,end){this.start=Math.max(0,Math.min(this.corpus.words.length-1,Number.isInteger(start)?start:0));this.end=Math.max(this.start+1,Math.min(this.corpus.words.length,Number.isInteger(end)?end:this.corpus.words.length));if(this.pos<this.start||this.pos>=this.end){this.pos=this.start;this.focusPos=this.pos}this.pending=[];this.replay=null;this.speechTail=[];this.speechTailPos=null;return this}
-  seek(sura,aya,word=0){const pos=this.corpus.position(sura,aya,word);if(pos===null||pos<this.start||pos>=this.end)return false;this.pos=pos;this.focusPos=pos;this.pending=[];this.pendingFragment=false;this.speechTail=[];this.speechTailPos=null;this.locating=false;this.locked=true;this.acquisition=null;this.live=null;this.replay=null;this.provisional.clear();this.provisionalUnverified.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return true}
+  seek(sura,aya,word=0){const pos=this.corpus.position(sura,aya,word);if(pos===null||pos<this.start||pos>=this.end)return false;this.pos=pos;this.focusPos=pos;this.pending=[];this.pendingFragment=false;this.speechTail=[];this.speechTailPos=null;this.manualAnchor=true;this.locating=false;this.locked=true;this.acquisition=null;this.live=null;this.replay=null;this.provisional.clear();this.provisionalUnverified.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return true}
   endUtterance(){
    if(this.live){
     // Keep interim-only continuity across a mobile service restart. These words
@@ -465,7 +486,7 @@
     hints:[...(this.hints.get(index)||[])],peeked:this.peeked.has(index),outcomes:this.outcomes.slice(),changed:this.changed.slice(),
     errorCount:pendingError+[...this.states.values()].reduce((sum,s)=>sum+s.errors.size,0)};
   }
-  beginSearch(){if(this.complete)this.pos=this.start;this.locating=true;this.locked=false;this.acquisition=null;this.locateBuffer=[];this.pending=[];this.pendingFragment=false;this.speechTail=[];this.speechTailPos=null;this.live=null;this.replay=null;this.provisional.clear();this.provisionalUnverified.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return this.snapshot()}
+  beginSearch(){if(!this.canResume()&&this.states.size){this.states.clear();this.outcomes=[];this.failures.clear()}this.manualAnchor=false;if(this.complete)this.pos=this.start;this.locating=true;this.locked=false;this.acquisition=null;this.locateBuffer=[];this.pending=[];this.pendingFragment=false;this.speechTail=[];this.speechTailPos=null;this.live=null;this.replay=null;this.provisional.clear();this.provisionalUnverified.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return this.snapshot()}
   feed(transcript,{final=false,speech=false,confidence=null}={}){
    const incoming=heardWords(transcript);if(!incoming.length)return {type:'empty',...this.snapshot()};
    let start=this.pos,heard=incoming,location=null,overlap=false;
@@ -619,11 +640,11 @@
     // A shallow read-only probe can pin its own acquisition but never mutate
     // the real follower's state, failures, provisional words, or journal.
     const probe=Object.assign(Object.create(Follower.prototype),this.follower,{acquisition:this.follower.acquisition?{...this.follower.acquisition}:null,live:null});
-    const preview=probe.feed(prefix+' '+a.transcript,{speech:true}).preview;
+    const candidate=probe.feed(prefix+' '+a.transcript,{speech:true}),preview=candidate.preview;
     const location=preview?.location;
     // Do not turn an invocation/undecided ayah in the primary speech result
     // into a remote Quran location merely because a lower alternative fits.
-    if(i===0&&protectOpening&&!location)return {transcript:top.transcript,confidence:topConfidence};
+    if(i===0&&(candidate.invocation||protectOpening&&!location))return {transcript:top.transcript,confidence:topConfidence};
     if(i===0)topLocation=location;
     else if(topLocation&&location&&(topLocation.sura!==location.sura||topLocation.aya!==location.aya||topLocation.word!==location.word))continue;
     const ops=preview?.operations||[],reads=ops.filter(op=>op.type==='read').length+(preview?.repetition?.positions.length||0),errors=ops.filter(op=>op.type!=='read').length;
@@ -659,5 +680,5 @@
   }
  }
 
- return {normalize,variants,heardWords,sourceWords,matchSeverity,Session,Corpus,Follower,SpeechInput};
+ return {version:27,normalize,variants,heardWords,sourceWords,matchSeverity,Session,Corpus,Follower,SpeechInput};
 });

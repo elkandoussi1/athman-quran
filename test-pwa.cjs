@@ -19,7 +19,8 @@ const html=fs.readFileSync('dist/index.html','utf8');
 for(const match of html.matchAll(/(?:src|href)="([^"]+)"/g)){
  const url=match[1];if(url.startsWith('#')||/^https?:/.test(url))continue;
  assert(!url.startsWith('/'),`Root-relative path breaks project Pages: ${url}`);
- assert(fs.existsSync(path.join('dist',url)),`Missing local resource: ${url}`);
+ const local=new URL(url,base).pathname.slice(new URL(base).pathname.length);
+ assert(fs.existsSync(path.join('dist',local)),`Missing local resource: ${url}`);
  assert(new URL(url,base).pathname.startsWith('/athman-quran/'));
 }
 const listeners={},stores=new Map();let online=true;
@@ -28,7 +29,7 @@ const caches={
  async open(name){
   if(!stores.has(name))stores.set(name,new Map());const data=stores.get(name);
   return {
-   async addAll(urls){for(const input of urls){assert.equal(input.cache,'reload','New app versions must bypass stale HTTP assets');const url=keyOf(input);assert(url.startsWith(base));let rel=url.slice(base.length)||'index.html';const file=path.join('dist',rel);assert(fs.existsSync(file),`Missing offline asset ${rel}`);data.set(url,new Response(fs.readFileSync(file)))}},
+   async addAll(urls){for(const input of urls){assert.equal(input.cache,'reload','New app versions must bypass stale HTTP assets');const url=keyOf(input);assert(url.startsWith(base));let rel=new URL(url).pathname.slice(new URL(base).pathname.length)||'index.html';const file=path.join('dist',rel);assert(fs.existsSync(file),`Missing offline asset ${rel}`);data.set(url,new Response(fs.readFileSync(file)))}},
    async match(input){return data.get(keyOf(input))?.clone()},
    async put(input,response){data.set(keyOf(input),response.clone())}
   };
@@ -53,5 +54,6 @@ function request(url,mode='same-origin',method='GET'){
  const text=await (await request(base+'assets/quran.json')).json();assert.equal(text.length,6214);
  assert((await (await request(base+'offline-route','navigate')).text()).includes('أثمان'));
  assert.equal(await (await request(base+'health')).text(),'network response');
+ for(const name of ['recitation.js','recitation-ui.js','app.js']){const url=`assets/${name}?v=27`;assert(html.includes(url));assert.equal(await (await request(base+url)).text(),fs.readFileSync('dist/assets/'+name,'utf8'),'Versioned startup scripts must remain available offline');}
  console.log('PASS: installable manifest and PNG sizes; project-relative assets; complete offline Quran; navigation fallback; cache isolation from other GitHub Pages projects.');
 })().catch(error=>{console.error(error);process.exitCode=1});

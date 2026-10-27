@@ -58,7 +58,8 @@ f=new Follower(c);f.beginSearch();f.feed('أعوذ بالله من الشيطا�
 // context is present. No global word alias equates الرحيم and الرجيم.
 const nahlText=c.units[nahl].words.map(w=>w.forms[0]);
 assert.equal(c.locate(heardWords(nahlText.join(' '))).reference.sura,16);
-assert.equal(c.locate(heardWords('فاستعذ بالله من الشيطان الرجيم')).reference.aya,98);
+assert.equal(c.locate(heardWords('فاستعذ بالله من الشيطان الرجيم')).status,'waiting');
+assert.equal(c.locate(heardWords('فإذا قرأت القرآن فاستعذ بالله من الشيطان الرجيم')).reference.aya,98);
 assert.equal(c.locate(heardWords('أعوذ بك رب أن يحضرون')).reference.sura,23);
 assert.equal(c.locate(heardWords('فأقم وجهك للدين القيم')).reference.sura,30);assert.notEqual(c.locate(heardWords('فأقم وجهك للدين القيم')).reference.aya,target.aya);
 assert(!variants('الرجيم').includes(normalize('الرحيم')));
@@ -76,6 +77,32 @@ for(let n=0;n<80;n++){
  if(clean.status!=='found')continue;
  const found=c.locate(heardWords('أعوذ بالله من الشيطان الرحيم '+sample));assert.equal(found.status,'found');assert.equal(found.pos,clean.pos);
 }
+
+// v27: the decision is based on source spans, including aliases the old raw
+// prefix parser did not recognize. No invocation alone may certify an ayah.
+const videoTargets=[['فأقم وجهك للدين حنيفا',30],['ومن يسلم وجهه إلى الله وهو محسن',31],['سبحان الذي أسرى بعبده ليلا',17]];
+const noisyOpenings=['باسم الله الرحمن الرحيم','صوت باسم الله الرحمن الرحيم','بسم اللاه الرحمان الرحيم','اعوذو بالله من الشيطان الرجيم','أعوذ بالله من الشيطن الرجيم','من الشيطن الرجيم','الشيطن الرجيم'];
+for(const opening of noisyOpenings)for(const [actual,sura] of videoTargets)for(const final of [false,true]){
+ f=new Follower(c,{index:nahl});f.beginSearch();r=f.feed(opening,{speech:true,final,confidence:.92});assert.equal(r.type,'locating',opening);assert.equal(f.locked,false);assert.equal(f.canResume(),false);assert.equal(f.states.size,0);assert.equal(f.outcomes.length,0);
+ r=f.feed(actual,options);assert.equal(r.location.sura,sura);assert.equal(f.canResume(),true);assert.equal(r.errorCount,0);assert.equal(f.state(nahl).read.size,0);assert.equal(f.state(c.byReference.get('27:30')).read.size,0);
+}
+// Basmala was previously accepted as Naml 30 when the initial search had a
+// passage range. The same opening rule now applies to that path as well.
+f=new Follower(c,{start:c.position(27,27),end:c.position(27,41)});f.beginSearch();
+for(const token of ['باسم','الله','الرحمن','الرحيم']){r=f.feed(token,options);assert.equal(r.type,'locating');assert.equal(f.locked,false);assert.equal(f.states.size,0);assert.equal(f.outcomes.length,0)}
+// Distinctive real Quran context still enables Naml, including its basmala.
+f=new Follower(c);f.beginSearch();const naml=c.units[c.byReference.get('27:30')];r=f.feed(naml.words.map(w=>w.forms[0]).join(' '),options);assert.equal(r.location.sura,27);assert.equal(r.location.aya,30);assert.equal(f.state(c.byReference.get('27:30')).read.size,naml.words.length);
+// Even an alternative containing extra Quran context must not overrule a
+// primary result which only matched an opening formula in the source.
+f=new Follower(c);f.beginSearch();let input27=new SpeechInput(f);
+const alt27=Object.assign([{transcript:'باسم الله الرحمن الرحيم',confidence:.94},{transcript:'إنه من سليمان وإنه بسم الله الرحمن الرحيم',confidence:.92}],{isFinal:false});
+assert.equal(input27.update([alt27]).locating,true);assert.equal(f.locked,false);assert.equal(f.states.size,0);
+// Restart an inherited opening-only false lock without retaining its false
+// completed-ayah credit. Genuine content/manual anchors remain resumable.
+f=new Follower(c,{index:nahl});const old=c.byReference.get('27:30'),state=f.editable(old);for(let word=4;word<8;word++)state.read.add(word);state.complete=true;f.outcomes=[{index:old}];f.pos=c.position(27,31);f.locked=true;
+assert.equal(f.canResume(),false);f.beginSearch();assert.equal(f.outcomes.length,0);assert.equal(f.states.size,0);r=f.feed('فأقم وجهك للدين حنيفا',options);assert.equal(r.location.sura,30);assert.equal(f.canResume(),true);
+f=new Follower(c);f.seek(27,30,4);assert.equal(f.canResume(),true,'Explicit manual reference stays authoritative');
+f=new Follower(c);f.beginSearch();f.feed('سبحان الذي أسرى بعبده',{speech:true});assert.equal(f.canResume(),true);f.endUtterance();assert.equal(f.canResume(),true);
 
 // Once a real ayah is acquired, the existing no-remote-jump guarantee remains.
 f=new Follower(c);f.beginSearch();f.feed(text.slice(0,4).join(' '),options);const frontier=f.pos,locate=c.locate;c.locate=()=>{throw Error('No global search after a real verse lock')};

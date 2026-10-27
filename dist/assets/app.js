@@ -291,4 +291,4 @@ about.addEventListener('click',event=>{if(event.target===about){const r=about.ge
 document.addEventListener('keydown',event=>{if(event.key==='/'&&!reader.open&&!about.open&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){const input=$('#searchInput');if(input){event.preventDefault();input.focus()}}if(event.key==='Escape')closeMenu()});
 $('.skip-link').addEventListener('click',event=>{event.preventDefault();main.focus();main.scrollIntoView({behavior:'instant'})});
 route();
-if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).catch(()=>{}));

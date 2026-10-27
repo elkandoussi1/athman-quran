@@ -42,8 +42,8 @@ for(const [s,a,oldWord,wrongWord] of [[1,3,'ملك','مالك'],[2,258,'ننشر
 // Repeated formulas, a single word, and unrelated speech never trigger a jump.
 for(const text of ['فبأي آلاء ربكما تكذبان','الحمد لله رب العالمين','بسم الله الرحمن الرحيم','الله','هذا اختبار لخدمة الصوت في الهاتف'])assert.notEqual(locate(text).status,'found',text);
 // A target appearing in two near-identical passages is still ambiguous.
-const repeated=new Corpus([{sura:1,aya:1,text:'تلك آيات الكتاب المبين الرحمن الرحيم'},{sura:2,aya:1,text:'تلك آيات الكتاب المبين الرحمن الرحيم'}]);
-assert.equal(repeated.locate(heardWords('تلك آيات خطأ المبين الرحمن الرحيم')).status,'ambiguous');
+const repeated=new Corpus([{sura:1,aya:1,text:'تلك آيات الكتاب المبين العظيم الرحمن الرحيم'},{sura:2,aya:1,text:'تلك آيات الكتاب المبين العظيم الرحمن الرحيم'}]);
+assert.equal(repeated.locate(heardWords('تلك آيات خطأ المبين العظيم الرحمن الرحيم')).status,'ambiguous');
 // Long uninterrupted results retain the opening words instead of clipping to
 // the last 64 tokens (the Warsh debt verse contains 128 source words).
 f=new Follower(corpus);f.beginSearch();
