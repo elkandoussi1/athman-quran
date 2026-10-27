@@ -263,6 +263,25 @@
   candidates.sort((a,b)=>a.cost-b.cost||b.chars-a.chars||a.skip-b.skip);
   return candidates[0]||null;
  }
+ function immediateAnchor(words,pos,heard,at,end){
+  // After location is locked, one exact nearby word can carry the live cursor.
+  // Never guess between two nearby occurrences or use a remote/page-wide hit.
+  const candidates=[];
+  for(let skip=1;skip<=2&&pos+skip<end;skip++){
+   const found=scan(words,pos+skip,heard,at,8,end);
+   if(!found.count||found.chars<2)continue;
+   candidates.push({skip,extra:0,...found,cost:skip});
+  }
+  return candidates.length===1&&(candidates[0].chars>=3||candidates[0].skip===1)?candidates[0]:null;
+ }
+ function nearbyTail(words,pos,tail,end){
+  if(!tail.length||tail.length>4)return false;
+  for(let p=pos+1;p<Math.min(end,pos+7);p++){
+   const run=scan(words,p,tail,0,8,end);
+   if(run.count&&run.at===tail.length)return true;
+  }
+  return false;
+ }
  function bridgeOperations(words,pos,heard,at,skip,extra){
   const table=Array.from({length:skip+1},()=>Array(extra+1).fill(null));table[0][0]={cost:0,matched:0,ops:[]};
   const put=(i,j,state)=>{const old=table[i][j];if(!old||state.cost<old.cost||state.cost===old.cost&&state.matched>old.matched)table[i][j]=state};
@@ -290,7 +309,8 @@
    }
    const tail=heard.slice(at),joinedTail=tail.join('');
    if((word.letterNames||tail.length===1&&['و','ف','ب','ل','ك','ال','يا'].includes(tail[0]))&&word.forms.some(w=>w.startsWith(joinedTail))){pending=tail;fragment=true;break}
-   const next=strict?null:anchor(words,pos,heard,at,end)||(speech?anchor(words,pos,heard,at,end,true):null);
+   let next=strict?null:anchor(words,pos,heard,at,end);
+   if(!next&&speech&&!strict){const fast=immediateAnchor(words,pos,heard,at,end);next=(heard.length-at<=2?fast:null)||anchor(words,pos,heard,at,end,true)||fast}
    if(!next){error=pos;errorSeverity=matchSeverity(word,heard[at]);pending=tail.slice(-24);break}
    // Resume only at an exact later anchor; skipped words remain explicit errors.
    operations.push(...bridgeOperations(words,pos,heard,at,next.skip,next.extra));
@@ -302,7 +322,7 @@
   constructor(corpus,{index=0,word=0,start=0,end=corpus.words.length,strict=false}={}){
    this.corpus=corpus;this.units=corpus.units;this.pos=(corpus.starts[index]||0)+word;this.focusPos=this.pos;
    this.locating=false;this.locked=false;this.acquisition=null;this.locateBuffer=[];this.pending=[];this.pendingFragment=false;this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;
-   this.observations=new Map();this.provisional=new Set();this.provisionalUnverified=new Set();this.live=null;
+   this.observations=new Map();this.provisional=new Set();this.provisionalUnverified=new Set();this.live=null;this.speechTail=[];this.speechTailPos=null;
    this.failures=new Map();this.hints=new Map();this.peeked=new Set();this.states=new Map();this.outcomes=[];this.changed=[];
    this.strict=strict;this.setRange(start,end);
   }
@@ -311,8 +331,8 @@
   get cursor(){return this.pos>=this.corpus.words.length?0:this.corpus.words[this.pos].word}
   state(index){return this.states.get(index)||{read:new Set(),errors:new Map(),unverified:new Set(),ignored:new Set(),complete:false,partial:false}}
   editable(index){if(!this.states.has(index))this.states.set(index,{read:new Set(),errors:new Map(),unverified:new Set(),ignored:new Set(),complete:false,partial:false});return this.states.get(index)}
-  setRange(start,end){this.start=Math.max(0,Math.min(this.corpus.words.length-1,Number.isInteger(start)?start:0));this.end=Math.max(this.start+1,Math.min(this.corpus.words.length,Number.isInteger(end)?end:this.corpus.words.length));if(this.pos<this.start||this.pos>=this.end){this.pos=this.start;this.focusPos=this.pos}this.pending=[];return this}
-  seek(sura,aya,word=0){const pos=this.corpus.position(sura,aya,word);if(pos===null||pos<this.start||pos>=this.end)return false;this.pos=pos;this.focusPos=pos;this.pending=[];this.pendingFragment=false;this.locating=false;this.locked=true;this.acquisition=null;this.live=null;this.provisional.clear();this.provisionalUnverified.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return true}
+  setRange(start,end){this.start=Math.max(0,Math.min(this.corpus.words.length-1,Number.isInteger(start)?start:0));this.end=Math.max(this.start+1,Math.min(this.corpus.words.length,Number.isInteger(end)?end:this.corpus.words.length));if(this.pos<this.start||this.pos>=this.end){this.pos=this.start;this.focusPos=this.pos}this.pending=[];this.speechTail=[];this.speechTailPos=null;return this}
+  seek(sura,aya,word=0){const pos=this.corpus.position(sura,aya,word);if(pos===null||pos<this.start||pos>=this.end)return false;this.pos=pos;this.focusPos=pos;this.pending=[];this.pendingFragment=false;this.speechTail=[];this.speechTailPos=null;this.locating=false;this.locked=true;this.acquisition=null;this.live=null;this.provisional.clear();this.provisionalUnverified.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return true}
   endUtterance(){
    if(this.live){
     // Keep interim-only continuity across a mobile service restart. These words
@@ -342,7 +362,7 @@
     hints:[...(this.hints.get(index)||[])],peeked:this.peeked.has(index),outcomes:this.outcomes.slice(),changed:this.changed.slice(),
     errorCount:pendingError+[...this.states.values()].reduce((sum,s)=>sum+s.errors.size,0)};
   }
-  beginSearch(){if(this.complete)this.pos=this.start;this.locating=true;this.locked=false;this.acquisition=null;this.locateBuffer=[];this.pending=[];this.pendingFragment=false;this.live=null;this.provisional.clear();this.provisionalUnverified.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return this.snapshot()}
+  beginSearch(){if(this.complete)this.pos=this.start;this.locating=true;this.locked=false;this.acquisition=null;this.locateBuffer=[];this.pending=[];this.pendingFragment=false;this.speechTail=[];this.speechTailPos=null;this.live=null;this.provisional.clear();this.provisionalUnverified.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return this.snapshot()}
   feed(transcript,{final=false,speech=false,confidence=null}={}){
    const incoming=heardWords(transcript);if(!incoming.length)return {type:'empty',...this.snapshot()};
    let start=this.pos,heard=incoming,location=null,overlap=false;
@@ -376,6 +396,11 @@
     else if(!overlap&&this.pending.length&&(!speech||this.pendingFragment)&&!consume(this.corpus.words,start,incoming,0))heard=[...this.pending,...incoming];
    }
    let result=align(this.corpus,start,heard,{end:this.end,strict:this.strict,speech});
+   if(speech&&!this.strict&&!overlap&&!location&&this.speechTailPos===start&&this.speechTail.length){
+    const combined=[...this.speechTail,...heard],candidate=align(this.corpus,start,combined,{end:this.end,speech:true});
+    const reads=r=>r.operations.filter(op=>op.type==='read').length;
+    if(candidate.pos>result.pos||candidate.pos===result.pos&&reads(candidate)>reads(result)){result=candidate;heard=combined}
+   }
    // Once located, only ordered nearby anchors may recover synchronisation.
    // A repeated phrase elsewhere in the Quran must never relocate this session.
    if(!final){
@@ -389,6 +414,13 @@
    this.live=null;
    let unclear=0;
    if(speech){
+    this.speechTail=[];this.speechTailPos=null;
+    if(!this.strict&&result.error!==null&&nearbyTail(this.corpus.words,result.pos,result.pending,this.end)){
+     // Buffer only exact nearby source fragments, not old rejected/noisy text.
+     // This joins single-word service finals without counting them as retries.
+     this.speechTail=result.pending.slice();this.speechTailPos=result.pos;
+     result.error=null;result.errorSeverity=null;unclear++;
+    }
     const numeric=typeof confidence==='number'&&Number.isFinite(confidence)&&confidence>0?confidence:null,observed=new Map();
     const assess=(pos,token,kind)=>{
      // A missing ASR word is not proof that the reader omitted it. Only a

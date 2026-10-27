@@ -67,4 +67,5 @@ require('./test-live-tracking.cjs');
 require('./test-stable-following.cjs');
 require('./test-speech-stream.cjs');
 require('./test-reading-display.cjs');
+require('./test-immediate-following.cjs');
 require('./test-study.cjs');

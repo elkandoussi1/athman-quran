@@ -31,6 +31,7 @@
 .recitation-page .reader-note{display:block;font:11px/1.8 var(--font);color:var(--rec-muted);margin:6px 0}
 .recitation-page.is-masked .basmala{visibility:hidden}
 .recitation-word{color:var(--rec-ink);border-radius:12px;-webkit-text-stroke:.12px currentColor;transition:color .12s,background .12s}
+.is-listening .recitation-word{transition:none}
 .recitation-page.is-masked .verse:not(.is-matched){color:transparent}
 .recitation-division-marker{display:inline-block;color:var(--rec-ink);font-family:var(--serif);font-size:.8em;line-height:1;vertical-align:middle;margin-inline:.08em;white-space:nowrap;user-select:none;-webkit-text-stroke:0}
 .recitation-word.is-concealed{color:transparent!important;text-shadow:none!important;user-select:none;-webkit-user-select:none}
@@ -52,6 +53,10 @@
 .recitation-word.is-unverified:not(.is-error):not(.is-uncertain):not(.is-hint){background:#B28A461C;color:#DED4AF;text-decoration:none!important;box-shadow:none}
 [data-recitation-theme="light"] .recitation-word.is-unverified:not(.is-error):not(.is-uncertain):not(.is-hint){color:#6F5C2E;background:#B28A461C}
 .recitation-legend .legend-unverified{color:#DED4AF}
+.recitation-response{border:1px solid var(--rec-line);border-radius:9px;padding:8px 10px;margin:10px 0;font:11px/1.9 var(--font)}
+.recitation-response summary{cursor:pointer;color:var(--rec-ink)}
+.recitation-response p{margin:8px 0;color:var(--rec-muted)}
+#recitationHeardText{color:var(--rec-ink);padding:6px 9px;border-inline-start:2px solid var(--rec-accent);overflow-wrap:anywhere}
 [data-recitation-theme="light"] .recitation-legend .legend-unverified{color:#6F5C2E}
 .recitation-page.is-marking .recitation-word{cursor:crosshair}
 .recitation-page .verse-number{position:relative;display:inline-grid;place-items:center;vertical-align:middle;font:10px/1 var(--font);width:25px;height:27px;margin-inline:1px;color:var(--rec-ink);border:0;border-radius:0;white-space:nowrap}

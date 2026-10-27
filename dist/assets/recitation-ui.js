@@ -12,7 +12,8 @@
   let restartTimer,watchdog,idleEnds=0,lastIndex=-1,hideText=true,sound=true,audio=null,localeFallback=false;
   let showNumbers=true,page=null,pageVerses=[],pageWords=[],pageUnitIndices=[],settingsButton=null,theme='dark',marking=false,noticeTimer;
   let journalId=null,selectedWord=null,manualStart=false,locationResolved=false;const mistakeSessions=new Map(),liveIndices=new Set();
-  let swipe=null,suppressClickUntil=0,clockTimer=null,listeningSince=null,elapsedMs=0,previewFrame=null,queuedPreview=null;
+  let swipe=null,suppressClickUntil=0,clockTimer=null,listeningSince=null,elapsedMs=0,liveWordTypes=new Map(),liveFocus=null,liveHeading=null;
+  let responseInfo={received:null,processing:0,kind:'',transcript:''};
   const now=()=>root.performance.now();
   let prefs={mode:'follow',strict:false,reveal:'words',history:false,locale:'ar-MA'};
   try{const saved=JSON.parse(localStorage.getItem('athman-practice-prefs')||'null');if(saved){if(['follow','practice','read'].includes(saved.mode))prefs.mode=saved.mode;prefs.strict=!!saved.strict;prefs.reveal=saved.reveal==='verse'?'verse':'words';prefs.history=!!saved.history;if(['ar-MA','ar-SA'].includes(saved.locale))prefs.locale=saved.locale}}catch{}
@@ -23,7 +24,7 @@
   const originalLabel=reader.getAttribute('aria-labelledby');
   const $=s=>host.querySelector(s);
   const isCurrent=rec=>!destroyed&&active&&recognition===rec;
-  const message=text=>{if($('#recitationStatus'))$('#recitationStatus').textContent=text;if($('#recitationHelp'))$('#recitationHelp').title=text};
+  const message=text=>{const status=$('#recitationStatus'),help=$('#recitationHelp');if(status&&status.textContent!==text)status.textContent=text;if(help&&help.title!==text)help.title=text};
   function notice(text){message(text);const el=$('#recitationNotice');if(!el)return;el.textContent=text;el.hidden=false;clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>{el.hidden=true},6500)}
   const markKey=(i,n)=>`${units[i].sura}:${units[i].aya}:${n+units[i].startWord}`;
   function saveMarks(){try{localStorage.setItem('athman-recitation-marks',JSON.stringify([...marks]))}catch{}}
@@ -36,7 +37,7 @@
    try{const osc=audio.createOscillator(),gain=audio.createGain(),now=audio.currentTime;osc.type='sine';osc.frequency.setValueAtTime(260,now);osc.frequency.exponentialRampToValueAtTime(180,now+.14);gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(.09,now+.015);gain.gain.exponentialRampToValueAtTime(.0001,now+.16);osc.connect(gain);gain.connect(audio.destination);osc.onended=()=>{osc.disconnect();gain.disconnect()};osc.start(now);osc.stop(now+.17)}catch{}
   }
   function abortRecognition(){
-   clearTimeout(watchdog);cancelPreview();pauseClock();const rec=recognition;recognition=null;started=false;
+   clearTimeout(watchdog);pauseClock();const rec=recognition;recognition=null;started=false;
    if(rec){rec.onresult=rec.onend=rec.onerror=rec.onstart=rec.onnomatch=null;try{rec.abort()}catch{}}
   }
   function createSession(){locationResolved=false;const u=units[0];return new root.ATHMAN_RECITATION.Follower(corpus,{index:corpus.byReference.get(u.sura+':'+u.aya)||0,word:u.startWord})}
@@ -105,7 +106,7 @@
    $('#recitationMeta').textContent=`ورش | آية ${u.aya}${info.juz?' | جزء '+info.juz:''}${info.hizb?' | حزب '+info.hizb:''}`;
    $('#recitationPosition').textContent=label;
   }
-  function paintPage(force=false){
+  function paintPage(force=false,{positions=null,preserveLive=false}={}){
    const s=session.snapshot(),assisted=new Map(s.outcomes.map(o=>[o.index,o.assisted]));
    const frequencies=prefs.history&&study?new Map(study.history().map(r=>[`${r.sura}:${r.aya}:${r.word}`,r.sessions])):null;
    page.classList.toggle('is-masked',hideText);page.classList.toggle('hide-verse-numbers',!showNumbers);
@@ -121,6 +122,7 @@
     pageVerses[i].classList.toggle('has-recitation-errors',state.errors.size>0);
     pageVerses[i].setAttribute('aria-label',units[i].label+(state.errors.size?`، مواضع تحتاج مراجعة: ${state.errors.size}`:assisted.get(global)?'، بمساعدة':''));
     pageWords[i].forEach((word,n)=>{
+     if(positions&&!positions.has(corpus.starts[global]+n+units[i].startWord))return;
      const actual=n+units[i].startWord,pending=current&&actual===s.errorIndex,flag=state.errors.get(actual),flagged=!!flag||pending,severity=pending?s.errorSeverity:flag?.severity;
      const provisional=session.provisional.has(corpus.starts[global]+actual);
      const unverified=!state.read.has(actual)&&(state.unverified.has(actual)||session.provisionalUnverified.has(corpus.starts[global]+actual));
@@ -139,34 +141,40 @@
      if(visible)word.removeAttribute('aria-hidden');else word.setAttribute('aria-hidden','true');
     });
    }
+   if(preserveLive)return;
+   liveWordTypes.clear();liveFocus=null;liveHeading=null;
    const focus=corpus.reference(s.focusPos),headingIndex=pageUnitIndices.includes(s.index)?s.index:pageUnitIndices.includes(focus?.index)?focus.index:pageUnitIndices[0];
    paintHeading(corpus.units[headingIndex]);
    liveIndices.clear();
    if(lastIndex!==s.index)currentIntoView();lastIndex=s.index;
-  }
-  function cancelPreview(){if(previewFrame!==null)root.cancelAnimationFrame(previewFrame);previewFrame=null;queuedPreview=null}
-  function queuePreview(preview){
-   queuedPreview=preview;if(previewFrame!==null)return;
-   previewFrame=root.requestAnimationFrame(()=>{previewFrame=null;const latest=queuedPreview;queuedPreview=null;if(active&&wantsAudio&&!destroyed)paintInterim(latest)});
   }
   function paintInterim(preview){
    if(!preview)return;
    const reads=preview.operations.filter(op=>op.type==='read');
    // Paint the newest hypothesis from the committed state. A revised hypothesis
    // retracts the earlier reveal, without adding mistakes or journal entries.
-   const target=followingPosition(preview.endPos,preview.focusPos),moved=reads.length&&syncLocation(target,{allowJump:!!preview.location&&!locationResolved});if(preview.location)locationResolved=true;paintPage(!!moved);
+   const target=followingPosition(preview.endPos,preview.focusPos),moved=reads.length&&syncLocation(target,{allowJump:!!preview.location&&!locationResolved});if(preview.location)locationResolved=true;if(moved)paintPage(true);
    const completed=new Set(preview.operations.filter(op=>{const w=corpus.words[op.pos],local=pageUnitIndices.indexOf(w.index);return local>=0&&preview.endPos>=corpus.starts[w.index]+units[local].startWord+pageWords[local].length}).map(op=>corpus.words[op.pos].index));
-   let focused=null;
+   const next=new Map(preview.operations.map(op=>[op.pos,(op.type==='read'?'read':'unverified')+':'+(prefs.reveal==='words'||completed.has(corpus.words[op.pos].index)?'show':'hide')]));
+   const restore=new Set([...liveWordTypes.keys()].filter(pos=>liveWordTypes.get(pos)!==next.get(pos)));
+   if(restore.size)paintPage(false,{positions:restore,preserveLive:true});
+   liveIndices.clear();
    for(const op of preview.operations){
     const ref=corpus.reference(op.pos),local=pageUnitIndices.indexOf(ref.index),word=pageWords[local]?.[ref.word-units[local]?.startWord];
-    if(!word)continue;liveIndices.add(ref.index);focused=word;
+    if(!word)continue;liveIndices.add(ref.index);if(liveWordTypes.get(op.pos)===next.get(op.pos))continue;
     if(prefs.reveal==='words'||completed.has(ref.index)){
      word.classList.remove('is-concealed');word.removeAttribute('aria-hidden');
-     if(op.type==='read'){word.classList.add('is-heard');word.classList.remove('is-unverified')}
+     if(op.type==='read'){word.classList.add('is-heard');word.classList.remove('is-unverified');if(!word.classList.contains('is-error')&&!word.classList.contains('is-uncertain'))word.removeAttribute('title')}
      else if(!session.state(ref.index).read.has(ref.word)&&!word.classList.contains('is-error')&&!word.classList.contains('is-uncertain')){word.classList.add('is-unverified');word.title='كشف مؤقت لموضع متجاوز لم تتأكد مطابقته؛ لا يُحتسب تسميعًا صحيحًا.'}
     }
    }
-   const ref=corpus.reference(focused?preview.focusPos:target);if(reads.length&&ref){focused?.classList.add('is-cursor');paintHeading(corpus.units[ref.index]);$('#recitationMeta').textContent+=' · مباشر';currentIntoView(focused);message('أتابع قراءتك الآن. الكشف المباشر مؤقت حتى تكتمل نتيجة الصوت.')}
+   liveWordTypes=next;
+   const ref=corpus.reference(reads.length?preview.focusPos:target),local=pageUnitIndices.indexOf(ref?.index),focused=pageWords[local]?.[ref?.word-units[local]?.startWord];
+   if(reads.length&&ref){
+    if(liveFocus!==preview.focusPos||moved||restore.size){page.querySelectorAll('.is-cursor').forEach(word=>word.classList.remove('is-cursor'));focused?.classList.add('is-cursor');currentIntoView(focused);liveFocus=preview.focusPos}
+    if(liveHeading!==ref.index){paintHeading(corpus.units[ref.index]);$('#recitationMeta').textContent+=' · مباشر';liveHeading=ref.index}
+    message('أتابع قراءتك الآن. الكشف المباشر مؤقت حتى تكتمل نتيجة الصوت.');
+   }
   }
   function setSettings(open){
    const panel=$('#recitationSettingsPanel');if(!panel)return;panel.hidden=!open;
@@ -233,6 +241,16 @@
    const seconds=Math.floor((elapsedMs+(listeningSince===null?0:now()-listeningSince))/1000),minutes=Math.floor(seconds/60),pad=n=>String(n).padStart(2,'0');
    value.textContent=(minutes>=60?pad(Math.floor(minutes/60))+':':'')+pad(minutes%60)+':'+pad(seconds%60);
    timer.hidden=!wantsAudio;
+   paintResponseInfo();
+  }
+  function paintResponseInfo(){
+   const status=$('#recitationResponseInfo'),heard=$('#recitationHeardText');if(!status||!heard)return;
+   status.textContent=responseInfo.received===null?'لم تصل كلمات من خدمة الصوت بعد. يبدأ الإظهار عند وصولها.':`آخر نتيجة ${responseInfo.kind} وصلت قبل ${Math.max(0,Math.floor((now()-responseInfo.received)/1000))} ث · المعالجة داخل أثمان: ${responseInfo.processing.toFixed(1)} ms`;
+   heard.textContent=responseInfo.transcript||'لا توجد كلمات ملتقطة بعد.';
+  }
+  function recordResponse(event,received){
+   const last=Array.from(event.results).findLast(r=>r[0]?.transcript?.trim());
+   responseInfo={received,processing:now()-received,kind:last?.isFinal?'نهائية':'أولية',transcript:(last?.[0]?.transcript||'').trim().split(/\s+/u).slice(-32).join(' ').slice(-450)};paintResponseInfo();
   }
   function startClock(){if(listeningSince!==null)return;listeningSince=now();clearInterval(clockTimer);clockTimer=setInterval(paintClock,1000);paintClock()}
   function pauseClock(){if(listeningSince!==null){elapsedMs+=now()-listeningSince;listeningSince=null}clearInterval(clockTimer);clockTimer=null;paintClock()}
@@ -274,7 +292,6 @@
   }
   function render(force=false,allowJump=false){
    if(!active||destroyed)return;
-   cancelPreview();
    const s=session.snapshot();if(syncLocation(followingPosition(session.pos,s.focusPos),{allowJump}))force=true;paintPage(force);
    const completed=s.outcomes.filter(o=>pageUnitIndices.includes(o.index)).length,total=units.length;
    $('#recitationProgress').textContent=String(completed)+(completed===1?' آية':' آيات');
@@ -313,6 +330,7 @@
    rec.onstart=()=>{if(!isCurrent(rec))return;if(study&&!study.active)journalId=study.begin({mode:prefs.mode,scope:prefs.mode==='practice'?'passage':'all'});clearTimeout(watchdog);clearTimeout(noticeTimer);$('#recitationNotice').hidden=true;started=true;startClock();paintTransport();message(session.locating?'أستمع إليك. اقرأ من أي موضع؛ جارٍ تحديد الآية من كلماتك.':'أستمع إليك وأتابع موضع قراءتك.')};
    rec.onresult=event=>{
     if(!isCurrent(rec)||!wantsAudio)return;
+    const received=now();try{
     const batch=stream.update(event.results);
     if(batch.hadSpeech){hadResult=true;idleEnds=0}if(!batch.changed)return;
     for(const result of batch.commits){
@@ -331,9 +349,10 @@
      if(result.complete)return;
     }
     if(batch.preview&&!session.complete){
-     queuePreview(batch.preview);
+     paintInterim(batch.preview);
      $('#recitationLive').textContent='متابعة مباشرة مؤقتة؛ تُراجع عند اكتمال نتيجة الصوت.';
-    }else{cancelPreview();if(liveIndices.size)paintPage();if(batch.locating)message(batch.ambiguous?'المقطع متشابه في أكثر من موضع؛ واصل القراءة.':'أستمع إليك لتحديد الآية.')}
+    }else{if(liveIndices.size)paintPage();if(batch.locating)message(batch.ambiguous?'المقطع متشابه في أكثر من موضع؛ واصل القراءة.':'أستمع إليك لتحديد الآية.')}
+    }finally{recordResponse(event,received)}
    };
    rec.onnomatch=()=>{if(isCurrent(rec))message('لم يتضح الصوت. حاول مجددًا؛ لا تُحتسب هذه محاولة خاطئة.')};
    rec.onerror=event=>{
@@ -350,7 +369,7 @@
     fatal(messages[event.error]||'توقّفت خدمة التعرّف الصوتي. يمكنك إعادة تشغيلها أو المتابعة يدويًا.');
    };
    rec.onend=()=>{
-    if(!isCurrent(rec))return;clearTimeout(watchdog);cancelPreview();pauseClock();recognition=null;started=false;session.endUtterance();if(liveIndices.size||session.provisional.size||session.provisionalUnverified.size)paintPage();
+    if(!isCurrent(rec))return;clearTimeout(watchdog);pauseClock();recognition=null;started=false;session.endUtterance();if(liveIndices.size||session.provisional.size||session.provisionalUnverified.size)paintPage();
     if(!wantsAudio)return;
     if(!hadResult)idleEnds++;if(idleEnds>=3){fatal('لم يصل صوت واضح من الخدمة. اضغط بدء الاستماع للمحاولة مجددًا.');return}
     paintTransport();scheduleRestart(hadResult?80:700);
@@ -371,7 +390,7 @@
     </header>
     <nav class="recitation-popover recitation-menu" id="recitationMenuPanel" aria-label="قائمة المصحف" hidden><div class="recitation-settings-heading"><strong>أثمان</strong><button id="recitationMenuClose" class="icon-button" aria-label="إغلاق قائمة المصحف">${icon('close')}</button></div><button id="recitationJournal">جلساتي ومواضع المراجعة</button><button id="recitationExit">العودة إلى القراءة العادية</button><a data-recitation-route href="#/">الأحزاب</a><a data-recitation-route href="#/halves">الأنصاف</a><a data-recitation-route href="#/quarters">الأرباع</a><a data-recitation-route href="#/eighths">الأثمان</a><a data-recitation-route href="#/surahs">السور</a><a data-recitation-route href="#/saved">مواضعي المحفوظة</a><a href="support.html">الدعم والمشاركة</a><button id="recitationClose">إغلاق المصحف</button></nav>
     <div class="recitation-popover recitation-search" id="recitationSearchPanel" hidden><div class="recitation-settings-heading"><label for="recitationSearchInput">البحث في القرآن الكريم</label><button id="recitationSearchClose" class="icon-button" aria-label="إغلاق البحث">${icon('close')}</button></div><input id="recitationSearchInput" type="search" autocomplete="off" placeholder="ابحث بعبارة أو مرجع مثل 29:46"><div id="recitationSearchResults" aria-live="polite"></div></div>
-    <div class="recitation-popover recitation-settings" id="recitationSettingsPanel" hidden><div class="recitation-settings-heading"><strong>إعدادات التسميع</strong><button id="recitationSettingsClose" class="icon-button" aria-label="إغلاق إعدادات التسميع">${icon('close')}</button></div><p class="recitation-disclosure">تسميع برواية ورش عن نافع: النص والترقيم ومرجع الكلمات من مصحف ورش. خدمة تحويل الصوت في المتصفح عامة، وليست نموذجًا صوتيًا مدرّبًا على ورش؛ لا تقيّم هذه الأداة الأوجه أو التجويد. قد تعالج خدمة متصفحك الصوت عبر الإنترنت؛ أثمان لا يحفظ تسجيلاتك. يحدّد التطبيق موضع قراءتك في القرآن كاملًا. بعد تحديد الآية يثبت موضع المراجعة؛ لا يعاد البحث في السور المتشابهة إلا بطلبك من زر تحديد الموضع مجددًا. عند التعثر يستمر تتبع الكلمات القريبة؛ وعند التوقف للتصحيح تظهر الكلمة بعد 3 نتائج واضحة غير متطابقة؛ النتائج ضعيفة الالتقاط لا تضيف محاولة. الآيات المتشابهة تحتاج كلمات إضافية لتمييز موضعها. زر القلم يتيح تحديد الكلمات يدويًا؛ الألوان تخص التحديد والتلميحات والتعثر، وليست أحكام التجويد.</p><div class="recitation-settings-row"><label>لغة خدمة الصوت <select id="recitationLocale" aria-label="لغة خدمة التعرف الصوتي"><option value="ar-MA">العربية (المغرب)</option><option value="ar-SA">العربية (السعودية)</option></select></label></div><p class="recitation-disclosure">هذا اختيار للغة خدمة الصوت فقط؛ يظل المصحف برواية ورش في الخيارين. تظهر الكلمات الواضحة مؤقتًا مع وصولها، وتُراجع عند اكتمال نتيجة الصوت. تُعالج إعادة الكلمات وتداخل النتائج دون إجبارك على الإعادة. عند إعادة اتصال الخدمة يبقى الكشف المؤقت دون احتسابه تسميعًا مؤكدًا. إذا لم يوفر المتصفح نتائج أولية فستتأخر المتابعة حتى تصل النتيجة.</p><div class="recitation-settings-row"><label>الوضع <select id="recitationMode" aria-label="وضع القراءة والتسميع"><option value="follow">تسميع حر من أي آية</option><option value="practice">مراجعة المقطع المفتوح فقط</option><option value="read">قراءة</option></select></label><label><input type="checkbox" id="recitationStrict"> التوقف حتى تصحيح الكلمة</label></div><div class="recitation-settings-row"><label>إظهار المطابقة <select id="recitationReveal" aria-label="طريقة إظهار الآيات"><option value="words">كلمة بكلمة</option><option value="verse">بعد اكتمال الآية</option></select></label><label><input type="checkbox" id="recitationHistory"> تظليل مواضع المراجعة السابقة</label></div><p class="recitation-disclosure recitation-legend"><span class="legend-red">● أحمر: اختلاف نصي متكرر في نتائج واضحة</span><span class="legend-yellow">● أصفر: التقاط غير مؤكّد أو مطابقة جزئية</span><span class="legend-unverified">● ذهبي خفيف: كلمة متجاوزة أُظهرت دون تأكيد صوتي</span></p><p class="recitation-disclosure">التلوين علامة مطابقة نصية، وليس حكمًا على صحة نطقك. لا يُحسب سقوط كلمة من خدمة الصوت وحده خطأ حذف، ولا تُحتسب الكلمة غير الملتقطة مطابقة. أول اختلاف يبقى أصفر؛ لا يظهر الأحمر والتنبيه إلا عند تكرار الاختلاف نفسه في نتائج نهائية ذات ثقة مرتفعة من الخدمة. قد تخطئ الخدمة في تقديرها. يمكنك مواصلة القراءة أو التحقق من العلامة. الكلمات التي تتجاوزها المتابعة تظهر بتظليل ذهبي خفيف بدل بقائها فراغات، ولا تُحتسب مطابقة صوتية لمجرد ظهورها. علامة الثمن تبقى ظاهرة مع إخفاء الآيات. التسميع الحر يبحث في القرآن كله عند البداية، ثم يثبت موضعك ويتابع بالتسلسل. مراجعة المقطع تحصر البحث والمتابعة في الجزء المفتوح. تظليل السجل: ذهبي لجلسة، برتقالي لجلستين، وأحمر لثلاث جلسات أو أكثر؛ وهو سجل علامات المطابقة.</p><div class="recitation-settings-row"><label><input id="recitationSound" type="checkbox" checked> صوت التنبيه</label><label>المظهر <select id="recitationTheme" aria-label="مظهر صفحة التسميع"><option value="dark">داكن</option><option value="light">فاتح</option></select></label><label><input id="recitationAutoHide" type="checkbox" checked> إخفاء النص عند بدء التسميع</label><label><input id="recitationShowNumbers" type="checkbox" checked> أرقام الآيات</label></div><div class="recitation-settings-row"><span>حجم الخط</span><button class="recitation-secondary" id="recitationSmaller" aria-label="تصغير خط التسميع">أ−</button><bdi id="recitationFontSize">${fontSize}</bdi><button class="recitation-secondary" id="recitationLarger" aria-label="تكبير خط التسميع">أ+</button></div><div class="recitation-settings-actions"><button class="recitation-secondary" id="recitationResync">تحديد موضع قراءتي مجددًا</button><button class="recitation-secondary" id="recitationJournalSettings">جلساتي ومواضع المراجعة</button><button class="recitation-secondary" id="recitationNext">متابعة الآية التالية بمساعدة</button><button class="recitation-secondary" id="recitationReset">إعادة التسميع من البداية</button><button class="recitation-secondary" id="recitationClearMarks">مسح تحديدات هذا المقطع</button><button class="recitation-secondary" id="recitationPassagePrev">المقطع السابق</button><button class="recitation-secondary" id="recitationPassageNext">المقطع التالي</button></div><p class="recitation-disclosure" id="recitationSettingsStatus"></p><p class="recitation-disclosure">للمراجعة دون تسميع: اسحب يمينًا للمقطع التالي ويسارًا للسابق، مع بقاء التمرير العمودي للقراءة. يحافظ الانتقال على إخفاء النص أو إظهاره. تظهر علامة الإيقاف المؤقت ومدة الاستماع أثناء تشغيل الميكروفون.</p><p class="recitation-disclosure">النص برواية ورش، ويتكيّف مع الشاشة. يعرض الشريط رقم الآية؛ لا نضع رقم صفحة مطبوعة دون خريطة صفحات مطابقة.</p></div>
+    <div class="recitation-popover recitation-settings" id="recitationSettingsPanel" hidden><div class="recitation-settings-heading"><strong>إعدادات التسميع</strong><button id="recitationSettingsClose" class="icon-button" aria-label="إغلاق إعدادات التسميع">${icon('close')}</button></div><p class="recitation-disclosure">تسميع برواية ورش عن نافع: النص والترقيم ومرجع الكلمات من مصحف ورش. خدمة تحويل الصوت في المتصفح عامة، وليست نموذجًا صوتيًا مدرّبًا على ورش؛ لا تقيّم هذه الأداة الأوجه أو التجويد. قد تعالج خدمة متصفحك الصوت عبر الإنترنت؛ أثمان لا يحفظ تسجيلاتك. يحدّد التطبيق موضع قراءتك في القرآن كاملًا. بعد تحديد الآية يثبت موضع المراجعة؛ لا يعاد البحث في السور المتشابهة إلا بطلبك من زر تحديد الموضع مجددًا. عند التعثر يستمر تتبع الكلمات القريبة؛ وعند التوقف للتصحيح تظهر الكلمة بعد 3 نتائج واضحة غير متطابقة؛ النتائج ضعيفة الالتقاط لا تضيف محاولة. الآيات المتشابهة تحتاج كلمات إضافية لتمييز موضعها. زر القلم يتيح تحديد الكلمات يدويًا؛ الألوان تخص التحديد والتلميحات والتعثر، وليست أحكام التجويد.</p><div class="recitation-settings-row"><label>لغة خدمة الصوت <select id="recitationLocale" aria-label="لغة خدمة التعرف الصوتي"><option value="ar-MA">العربية (المغرب)</option><option value="ar-SA">العربية (السعودية)</option></select></label></div><p class="recitation-disclosure">هذا اختيار للغة خدمة الصوت فقط؛ يظل المصحف برواية ورش في الخيارين. تظهر الكلمات الواضحة مؤقتًا مع وصولها، وتُراجع عند اكتمال نتيجة الصوت. تُعالج إعادة الكلمات وتداخل النتائج دون إجبارك على الإعادة. عند إعادة اتصال الخدمة يبقى الكشف المؤقت دون احتسابه تسميعًا مؤكدًا. إذا لم يوفر المتصفح نتائج أولية فستتأخر المتابعة حتى تصل النتيجة.</p><details class="recitation-response"><summary>تشخيص سرعة الاستجابة</summary><p>آخر كلمات وصلت من خدمة الصوت، وزمن معالجتها داخل أثمان. يساعد هذا العرض على تمييز انتظار الخدمة من انتظار المطابقة.</p><p id="recitationResponseInfo" aria-live="off"></p><p id="recitationHeardText" dir="rtl"></p><p>الزمن لا يشمل التقاط الصوت أو الشبكة أو وقت خدمة المتصفح. هذا عرض مؤقت للجلسة؛ لا تُحفظ الكلمات في السجل أو النسخة الاحتياطية.</p></details><div class="recitation-settings-row"><label>الوضع <select id="recitationMode" aria-label="وضع القراءة والتسميع"><option value="follow">تسميع حر من أي آية</option><option value="practice">مراجعة المقطع المفتوح فقط</option><option value="read">قراءة</option></select></label><label><input type="checkbox" id="recitationStrict"> التوقف حتى تصحيح الكلمة</label></div><div class="recitation-settings-row"><label>إظهار المطابقة <select id="recitationReveal" aria-label="طريقة إظهار الآيات"><option value="words">كلمة بكلمة</option><option value="verse">بعد اكتمال الآية</option></select></label><label><input type="checkbox" id="recitationHistory"> تظليل مواضع المراجعة السابقة</label></div><p class="recitation-disclosure recitation-legend"><span class="legend-red">● أحمر: اختلاف نصي متكرر في نتائج واضحة</span><span class="legend-yellow">● أصفر: التقاط غير مؤكّد أو مطابقة جزئية</span><span class="legend-unverified">● ذهبي خفيف: كلمة متجاوزة أُظهرت دون تأكيد صوتي</span></p><p class="recitation-disclosure">التلوين علامة مطابقة نصية، وليس حكمًا على صحة نطقك. لا يُحسب سقوط كلمة من خدمة الصوت وحده خطأ حذف، ولا تُحتسب الكلمة غير الملتقطة مطابقة. أول اختلاف يبقى أصفر؛ لا يظهر الأحمر والتنبيه إلا عند تكرار الاختلاف نفسه في نتائج نهائية ذات ثقة مرتفعة من الخدمة. قد تخطئ الخدمة في تقديرها. يمكنك مواصلة القراءة أو التحقق من العلامة. الكلمات التي تتجاوزها المتابعة تظهر بتظليل ذهبي خفيف بدل بقائها فراغات، ولا تُحتسب مطابقة صوتية لمجرد ظهورها. علامة الثمن تبقى ظاهرة مع إخفاء الآيات. التسميع الحر يبحث في القرآن كله عند البداية، ثم يثبت موضعك ويتابع بالتسلسل. مراجعة المقطع تحصر البحث والمتابعة في الجزء المفتوح. تظليل السجل: ذهبي لجلسة، برتقالي لجلستين، وأحمر لثلاث جلسات أو أكثر؛ وهو سجل علامات المطابقة.</p><div class="recitation-settings-row"><label><input id="recitationSound" type="checkbox" checked> صوت التنبيه</label><label>المظهر <select id="recitationTheme" aria-label="مظهر صفحة التسميع"><option value="dark">داكن</option><option value="light">فاتح</option></select></label><label><input id="recitationAutoHide" type="checkbox" checked> إخفاء النص عند بدء التسميع</label><label><input id="recitationShowNumbers" type="checkbox" checked> أرقام الآيات</label></div><div class="recitation-settings-row"><span>حجم الخط</span><button class="recitation-secondary" id="recitationSmaller" aria-label="تصغير خط التسميع">أ−</button><bdi id="recitationFontSize">${fontSize}</bdi><button class="recitation-secondary" id="recitationLarger" aria-label="تكبير خط التسميع">أ+</button></div><div class="recitation-settings-actions"><button class="recitation-secondary" id="recitationResync">تحديد موضع قراءتي مجددًا</button><button class="recitation-secondary" id="recitationJournalSettings">جلساتي ومواضع المراجعة</button><button class="recitation-secondary" id="recitationNext">متابعة الآية التالية بمساعدة</button><button class="recitation-secondary" id="recitationReset">إعادة التسميع من البداية</button><button class="recitation-secondary" id="recitationClearMarks">مسح تحديدات هذا المقطع</button><button class="recitation-secondary" id="recitationPassagePrev">المقطع السابق</button><button class="recitation-secondary" id="recitationPassageNext">المقطع التالي</button></div><p class="recitation-disclosure" id="recitationSettingsStatus"></p><p class="recitation-disclosure">للمراجعة دون تسميع: اسحب يمينًا للمقطع التالي ويسارًا للسابق، مع بقاء التمرير العمودي للقراءة. يحافظ الانتقال على إخفاء النص أو إظهاره. تظهر علامة الإيقاف المؤقت ومدة الاستماع أثناء تشغيل الميكروفون.</p><p class="recitation-disclosure">النص برواية ورش، ويتكيّف مع الشاشة. يعرض الشريط رقم الآية؛ لا نضع رقم صفحة مطبوعة دون خريطة صفحات مطابقة.</p></div>
     <div id="recitationWordMenu" class="recitation-word-menu recitation-popover" hidden><div class="recitation-settings-heading"><strong id="recitationWordLabel"></strong><button id="recitationWordMenuClose" class="icon-button" aria-label="إغلاق خيارات الكلمة">${icon('close')}</button></div><p id="recitationWordReference"></p><button id="recitationIgnoreError" class="recitation-secondary">هذه العلامة غير صحيحة، أزلها</button><button id="recitationStartHere" class="recitation-secondary">المتابعة من هذه الكلمة</button><button id="recitationFindPhrase" class="recitation-secondary">مواضع العبارة في القرآن</button></div>
     <div class="recitation-position"><span id="recitationPosition"></span></div>
     <div class="recitation-page-scroll" id="recitationPageScroll" tabindex="0" aria-label="صفحة الآيات؛ اسحب يمينًا للمقطع التالي ويسارًا للسابق عند توقف الميكروفون"></div>
@@ -404,7 +423,7 @@
   function startAudio(){
    if(!active||!Recognition||wantsAudio)return;
    if(prefs.mode==='read'){prefs.mode='follow';$('#recitationMode').value=prefs.mode;savePrefs()}
-   applyScope();if(!manualStart&&!session.locked)session.beginSearch();manualStart=false;localeFallback=false;elapsedMs=0;
+   applyScope();if(!manualStart&&!session.locked)session.beginSearch();manualStart=false;localeFallback=false;elapsedMs=0;responseInfo={received:null,processing:0,kind:'',transcript:''};
    if($('#recitationAutoHide').checked)hideText=true;render(true);
    wantsAudio=true;idleEnds=0;audioReady();notice((session.locked?'أستأنف من موضع المراجعة الثابت.':'اقرأ من أي موضع لتحديد بداية المراجعة.')+' جارٍ فتح الميكروفون؛ قد تعالج خدمة متصفحك الصوت عبر الإنترنت.');beginCycle();
   }
