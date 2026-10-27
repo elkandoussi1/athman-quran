@@ -1,7 +1,7 @@
 /* Microphone use begins only after the reader presses Start. No audio is stored. */
 (function(root){
  'use strict';
- const BUILD=27;
+ const BUILD=28;
  const icon=name=>`<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
  function mount({reader,source,host,toggle,fontSize,corpus,study=null,onJournalOpen=()=>{},resolveLocation=()=>false,adjacentReference=()=>null,contextFor=()=>({}),Recognition=root.SpeechRecognition||root.webkitSpeechRecognition}){
   const readUnits=()=>[...source.querySelectorAll('.verse')].map(v=>{
@@ -354,7 +354,7 @@
    rec.onresult=event=>{
     if(!isCurrent(rec)||!wantsAudio)return;
     const received=now();try{
-    const batch=stream.update(event.results);
+    const batch=stream.update(event.results,{resultIndex:event.resultIndex});
     if(batch.hadSpeech){hadResult=true;idleEnds=0}if(!batch.changed)return;
     for(const result of batch.commits){
      if(study){if(!study.active)journalId=study.begin({mode:prefs.mode,scope:prefs.mode==='practice'?'passage':'all'});study.record(result.events);for(const e of result.events||[])if(e.type!=='read')mistakeSessions.set(`${e.sura}:${e.aya}:${e.word}`,journalId)}

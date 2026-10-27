@@ -37,6 +37,8 @@ jobs:
           node test-divisions.cjs
           node test-pwa.cjs
           node test-recitation.cjs
+          node test-refrain-recovery.cjs
+          node test-result-list-reset.cjs
           python3 validate.py
       - name: Configure Pages
         uses: actions/configure-pages@v5

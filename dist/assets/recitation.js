@@ -412,7 +412,12 @@
     if(repeat?.ambiguous&&!step){pending=heard.slice(at).slice(-32);fragment=true;repeatAmbiguous=true;break}
     // Prefer normal forward reading unless a longer exact phrase disambiguates
     // an ayah that begins with the same word as the next one.
-    if(repeat&&(!step||repeat.count>=2&&repeat.chars>=8&&repeat.count>scan(words,pos,heard,at,512,end).count)){
+    // A dropped ASR word must not turn an in-order refrain into a repetition of an
+    // earlier ayah: if the repeat cannot explain every heard word but reading
+    // forward (skipping a few words) explains strictly more, read forward.
+    const forward=repeat&&!repeat.ambiguous&&!step&&repeat.unclear&&!strict?anchor(words,pos,heard,at,end):null;
+    const preferForward=!!forward&&forward.skip>=1&&forward.count>repeat.count;
+    if(repeat&&!preferForward&&(!step||repeat.count>=2&&repeat.chars>=8&&repeat.count>scan(words,pos,heard,at,512,end).count)){
      repeated.push(...repeat.positions);
      at=repeat.at;nextReplay=repeat.pos<pos?{pos:repeat.pos,frontier:pos}:null;
      if(repeat.unclear){repeatAmbiguous=true;break}
@@ -617,6 +622,14 @@
  // interim entries can be revised, removed, or finalized independently.
  class SpeechInput{
   constructor(follower){this.follower=follower;this.finals=new Set();this.finalCursor=0;this.liveKey='';this.choices=new Map()}
+  // Some engines restart the result list after a final, reusing index 0 for new
+  // speech. Detect that WITHOUT re-reading settled finals (they stay immutable):
+  // the list became shorter than what was consumed, or the event says its lowest
+  // changed index is already-settled while it carries nothing beyond them.
+  listRestarted(results,resultIndex){
+   if(!this.finalCursor)return false;
+   return results.length<this.finalCursor||Number.isInteger(resultIndex)&&resultIndex<this.finalCursor&&results.length<=this.finalCursor;
+  }
   choose(result,prefix=''){
    const alternatives=Array.from(result).slice(0,3).filter(a=>typeof a?.transcript==='string'&&a.transcript.trim());
    if(!alternatives.length)return {transcript:'',confidence:null};
@@ -654,8 +667,9 @@
    }
    return {transcript:best.transcript,confidence:confidence(best)};
   }
-  update(results){
+  update(results,{resultIndex=null}={}){
    const commits=[],parts=[],confidences=[];let hadSpeech=false;
+   if(this.listRestarted(results,resultIndex)){this.finals=new Set();this.finalCursor=0;this.choices.clear()}
    for(let i=this.finalCursor;i<results.length;i++){
     const result=results[i];
     if(result.isFinal&&this.finals.has(i))continue;
@@ -680,5 +694,5 @@
   }
  }
 
- return {version:27,normalize,variants,heardWords,sourceWords,matchSeverity,Session,Corpus,Follower,SpeechInput};
+ return {version:28,normalize,variants,heardWords,sourceWords,matchSeverity,Session,Corpus,Follower,SpeechInput};
 });
