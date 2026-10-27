@@ -50,6 +50,11 @@
 .recitation-legend .legend-yellow{color:#F3D76F}
 [data-recitation-theme="light"] .recitation-legend .legend-yellow{color:#765300}
 .recitation-word.is-heard:not(.is-concealed){color:var(--rec-heard)}
+.recitation-page .verse.is-repeated .recitation-word:not(.is-concealed):not(.is-error):not(.is-uncertain){color:#86EFAC;background:#36CC7A1A;text-decoration:none}
+.recitation-page .verse.is-repeated .recitation-word.is-repeat-cursor:not(.is-concealed):not(.is-error):not(.is-uncertain){background:#36CC7A36;box-shadow:0 0 0 1px #72E49D50}
+[data-recitation-theme="light"] .recitation-page .verse.is-repeated .recitation-word:not(.is-concealed):not(.is-error):not(.is-uncertain){color:#17603B;background:#1B8D5012}
+.recitation-legend .legend-green{color:#86EFAC}
+[data-recitation-theme="light"] .recitation-legend .legend-green{color:#17603B}
 .recitation-word.is-unverified:not(.is-error):not(.is-uncertain):not(.is-hint){background:#B28A461C;color:#DED4AF;text-decoration:none!important;box-shadow:none}
 [data-recitation-theme="light"] .recitation-word.is-unverified:not(.is-error):not(.is-uncertain):not(.is-hint){color:#6F5C2E;background:#B28A461C}
 .recitation-legend .legend-unverified{color:#DED4AF}

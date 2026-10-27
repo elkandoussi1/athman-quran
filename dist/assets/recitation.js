@@ -298,11 +298,45 @@
   }
   return table[skip][extra].ops;
  }
- function align(corpus,start,heard,{end=corpus.words.length,strict=false,speech=false}={}){
-  const words=corpus.words,operations=[];let pos=start,at=0,pending=[],error=null,errorSeverity=null,autoIntro=false,fragment=false;
+ function repeatedRun(corpus,frontier,heard,at,{start=0,end=corpus.words.length,replay=null,wasRead=()=>false}={}){
+  // Repetition is local feedback, never a second Quran-wide location search.
+  // Consider only the current/previous ayah, or a pinned unfinished repetition.
+  const candidates=new Map(),index=corpus.reference(frontier)?.index;
+  if(replay?.frontier===frontier&&replay.pos<frontier)candidates.set(replay.pos,true);
+  for(const i of [index,index-1]){
+   if(i<0)continue;const p=Math.max(start,corpus.starts[i]);
+   if(p<frontier&&p<end&&wasRead(p))candidates.set(p,candidates.get(p)||false);
+  }
+  const found=[];
+  for(const [p,pinned] of candidates){
+   const run=scan(corpus.words,p,heard,at,512,Math.min(frontier,end));
+   // A unique exact short word may give feedback immediately. This path adds
+   // no read credit, and ties between local ayahs still wait for more words.
+   if(!run.count||!pinned&&run.chars<2)continue;
+   if(run.at<heard.length&&run.pos<frontier)continue;
+   found.push({...run,start:p,pinned});
+  }
+  found.sort((a,b)=>b.count-a.count||b.chars-a.chars||Number(b.pinned)-Number(a.pinned));
+  if(!found.length)return null;
+  if(found[1]&&found[0].count===found[1].count&&found[0].chars===found[1].chars&&!found[0].pinned)return {ambiguous:true};
+  return found[0];
+ }
+ function align(corpus,start,heard,{end=corpus.words.length,strict=false,speech=false,scopeStart=0,wasRead=()=>false,replay=null}={}){
+  const words=corpus.words,operations=[],repeated=[],localReads=new Set();let pos=start,at=0,pending=[],error=null,errorSeverity=null,autoIntro=false,fragment=false,nextReplay=replay,repeatAmbiguous=false;
   while(at<heard.length&&pos<end){
    const word=words[pos],step=consume(words,pos,heard,at);
-   if(step&&pos+step.advance<=end){for(let n=0;n<step.advance;n++)operations.push({type:'read',pos:pos+n});pos+=step.advance;at+=step.take;continue}
+   if(speech){
+    const repeat=repeatedRun(corpus,pos,heard,at,{start:scopeStart,end,replay:nextReplay,wasRead:p=>localReads.has(p)||wasRead(p)});
+    if(repeat?.ambiguous&&!step){pending=heard.slice(at).slice(-32);fragment=true;repeatAmbiguous=true;break}
+    // Prefer normal forward reading unless a longer exact phrase disambiguates
+    // an ayah that begins with the same word as the next one.
+    if(repeat&&(!step||repeat.count>=2&&repeat.chars>=8&&repeat.count>scan(words,pos,heard,at,512,end).count)){
+     for(let p=repeat.start;p<repeat.pos;p++)repeated.push(p);
+     at=repeat.at;nextReplay=repeat.pos<pos?{pos:repeat.pos,frontier:pos}:null;
+     continue;
+    }
+   }
+   if(step&&pos+step.advance<=end){for(let n=0;n<step.advance;n++){operations.push({type:'read',pos:pos+n});localReads.add(pos+n)}pos+=step.advance;at+=step.take;nextReplay=null;repeated.length=0;continue}
    if(word.word===0&&(pos===start||corpus.units[word.index].aya===1)){
     const remaining=heard.length-at,intro=introductions.find(intro=>intro.slice(0,Math.min(intro.length,remaining)).every((w,i)=>w===heard[at+i]));
     if(intro){if(remaining<intro.length){pending=heard.slice(at);autoIntro=true;fragment=true;break}at+=intro.length;continue}
@@ -313,16 +347,17 @@
    if(!next&&speech&&!strict){const fast=immediateAnchor(words,pos,heard,at,end);next=(heard.length-at<=2?fast:null)||anchor(words,pos,heard,at,end,true)||fast}
    if(!next){error=pos;errorSeverity=matchSeverity(word,heard[at]);pending=tail.slice(-24);break}
    // Resume only at an exact later anchor; skipped words remain explicit errors.
-   operations.push(...bridgeOperations(words,pos,heard,at,next.skip,next.extra));
+   const bridge=bridgeOperations(words,pos,heard,at,next.skip,next.extra);operations.push(...bridge);for(const op of bridge)if(op.type==='read')localReads.add(op.pos);
    pos+=next.skip;at+=next.extra;
   }
-  return {pos,operations,error,errorSeverity,errorHeard:error===null?null:heard[at],pending,autoIntro,fragment};
+  return {pos,operations,error,errorSeverity,errorHeard:error===null?null:heard[at],pending,autoIntro,fragment,at,replay:nextReplay,repeatAmbiguous,
+   repetition:repeated.length?{positions:[...new Set(repeated)],focusPos:repeated.at(-1)}:null};
  }
  class Follower{
   constructor(corpus,{index=0,word=0,start=0,end=corpus.words.length,strict=false}={}){
    this.corpus=corpus;this.units=corpus.units;this.pos=(corpus.starts[index]||0)+word;this.focusPos=this.pos;
    this.locating=false;this.locked=false;this.acquisition=null;this.locateBuffer=[];this.pending=[];this.pendingFragment=false;this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;
-   this.observations=new Map();this.provisional=new Set();this.provisionalUnverified=new Set();this.live=null;this.speechTail=[];this.speechTailPos=null;
+   this.observations=new Map();this.provisional=new Set();this.provisionalUnverified=new Set();this.live=null;this.replay=null;this.speechTail=[];this.speechTailPos=null;
    this.failures=new Map();this.hints=new Map();this.peeked=new Set();this.states=new Map();this.outcomes=[];this.changed=[];
    this.strict=strict;this.setRange(start,end);
   }
@@ -331,8 +366,8 @@
   get cursor(){return this.pos>=this.corpus.words.length?0:this.corpus.words[this.pos].word}
   state(index){return this.states.get(index)||{read:new Set(),errors:new Map(),unverified:new Set(),ignored:new Set(),complete:false,partial:false}}
   editable(index){if(!this.states.has(index))this.states.set(index,{read:new Set(),errors:new Map(),unverified:new Set(),ignored:new Set(),complete:false,partial:false});return this.states.get(index)}
-  setRange(start,end){this.start=Math.max(0,Math.min(this.corpus.words.length-1,Number.isInteger(start)?start:0));this.end=Math.max(this.start+1,Math.min(this.corpus.words.length,Number.isInteger(end)?end:this.corpus.words.length));if(this.pos<this.start||this.pos>=this.end){this.pos=this.start;this.focusPos=this.pos}this.pending=[];this.speechTail=[];this.speechTailPos=null;return this}
-  seek(sura,aya,word=0){const pos=this.corpus.position(sura,aya,word);if(pos===null||pos<this.start||pos>=this.end)return false;this.pos=pos;this.focusPos=pos;this.pending=[];this.pendingFragment=false;this.speechTail=[];this.speechTailPos=null;this.locating=false;this.locked=true;this.acquisition=null;this.live=null;this.provisional.clear();this.provisionalUnverified.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return true}
+  setRange(start,end){this.start=Math.max(0,Math.min(this.corpus.words.length-1,Number.isInteger(start)?start:0));this.end=Math.max(this.start+1,Math.min(this.corpus.words.length,Number.isInteger(end)?end:this.corpus.words.length));if(this.pos<this.start||this.pos>=this.end){this.pos=this.start;this.focusPos=this.pos}this.pending=[];this.replay=null;this.speechTail=[];this.speechTailPos=null;return this}
+  seek(sura,aya,word=0){const pos=this.corpus.position(sura,aya,word);if(pos===null||pos<this.start||pos>=this.end)return false;this.pos=pos;this.focusPos=pos;this.pending=[];this.pendingFragment=false;this.speechTail=[];this.speechTailPos=null;this.locating=false;this.locked=true;this.acquisition=null;this.live=null;this.replay=null;this.provisional.clear();this.provisionalUnverified.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return true}
   endUtterance(){
    if(this.live){
     // Keep interim-only continuity across a mobile service restart. These words
@@ -341,7 +376,7 @@
      if(op.type==='read'){this.provisional.add(op.pos);this.provisionalUnverified.delete(op.pos)}
      else if(!this.provisional.has(op.pos))this.provisionalUnverified.add(op.pos);
     }
-    this.pos=Math.min(this.end-1,this.live.endPos);this.focusPos=this.live.focusPos;this.live=null;
+    this.pos=Math.min(this.end-1,this.live.endPos);this.focusPos=this.live.focusPos;this.replay=this.live.replay;this.live=null;
     if(this.errorPos!==null&&this.errorPos<this.pos){this.errorPos=null;this.errorIndex=null;this.errorSeverity=null}
    }
    if(this.acquisition){this.pos=Math.min(this.end-1,this.acquisition.lastPos??this.acquisition.pos);this.focusPos=this.acquisition.focusPos??this.pos;this.locating=false;this.acquisition=null;this.locateBuffer=[];this.pending=[];this.pendingFragment=false}
@@ -362,7 +397,7 @@
     hints:[...(this.hints.get(index)||[])],peeked:this.peeked.has(index),outcomes:this.outcomes.slice(),changed:this.changed.slice(),
     errorCount:pendingError+[...this.states.values()].reduce((sum,s)=>sum+s.errors.size,0)};
   }
-  beginSearch(){if(this.complete)this.pos=this.start;this.locating=true;this.locked=false;this.acquisition=null;this.locateBuffer=[];this.pending=[];this.pendingFragment=false;this.speechTail=[];this.speechTailPos=null;this.live=null;this.provisional.clear();this.provisionalUnverified.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return this.snapshot()}
+  beginSearch(){if(this.complete)this.pos=this.start;this.locating=true;this.locked=false;this.acquisition=null;this.locateBuffer=[];this.pending=[];this.pendingFragment=false;this.speechTail=[];this.speechTailPos=null;this.live=null;this.replay=null;this.provisional.clear();this.provisionalUnverified.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return this.snapshot()}
   feed(transcript,{final=false,speech=false,confidence=null}={}){
    const incoming=heardWords(transcript);if(!incoming.length)return {type:'empty',...this.snapshot()};
    let start=this.pos,heard=incoming,location=null,overlap=false;
@@ -380,11 +415,15 @@
     if(this.complete)return {type:'complete',...this.snapshot()};
     const first=Math.max(this.start,this.corpus.starts[this.index]);
     // A retry may begin at the failing word or at the start of its verse.
-    if(speech&&!consume(this.corpus.words,start,incoming,0)){
+    if(speech&&!this.replay&&!this.pendingFragment&&!consume(this.corpus.words,start,incoming,0)){
      // Some services repeat a confirmed suffix in the next final chunk. Match
      // that local overlap, including mid-ayah retries, without rewinding credit.
      let best=null;
      for(let p=Math.max(this.start,this.pos-24);p<this.pos;p++){
+      // Ayah-start repetitions have their own feedback cursor. Do not consume
+      // them as an invisible duplicate suffix before that path can see them.
+      const w=this.corpus.words[p];
+      if(p===Math.max(this.start,this.corpus.starts[w.index])&&(this.states.get(w.index)?.read.has(w.word)||this.provisional.has(p)))continue;
       const run=scan(this.corpus.words,p,incoming,0,512,this.end);
       const repeatedLast=p===this.pos-1&&run.count===1&&run.at===incoming.length;
       if(!repeatedLast&&(run.count<2||run.chars<8)||run.at<incoming.length&&run.pos<this.pos)continue;
@@ -392,12 +431,13 @@
      }
      if(best){start=best.start;overlap=true}
     }
-    if(!overlap&&this.cursor>0&&!consume(this.corpus.words,start,incoming,0)&&consume(this.corpus.words,first,incoming,0))start=first;
+    if(!speech&&!overlap&&this.cursor>0&&!consume(this.corpus.words,start,incoming,0)&&consume(this.corpus.words,first,incoming,0))start=first;
     else if(!overlap&&this.pending.length&&(!speech||this.pendingFragment)&&!consume(this.corpus.words,start,incoming,0))heard=[...this.pending,...incoming];
    }
-   let result=align(this.corpus,start,heard,{end:this.end,strict:this.strict,speech});
+   const alignOptions={end:this.end,strict:this.strict,speech,scopeStart:this.start,replay:this.replay,wasRead:p=>{const w=this.corpus.words[p];return !!this.states.get(w.index)?.read.has(w.word)||this.provisional.has(p)}};
+   let result=align(this.corpus,start,heard,alignOptions);
    if(speech&&!this.strict&&!overlap&&!location&&this.speechTailPos===start&&this.speechTail.length){
-    const combined=[...this.speechTail,...heard],candidate=align(this.corpus,start,combined,{end:this.end,speech:true});
+    const combined=[...this.speechTail,...heard],candidate=align(this.corpus,start,combined,alignOptions);
     const reads=r=>r.operations.filter(op=>op.type==='read').length;
     if(candidate.pos>result.pos||candidate.pos===result.pos&&reads(candidate)>reads(result)){result=candidate;heard=combined}
    }
@@ -406,13 +446,13 @@
    if(!final){
     const ref=this.corpus.reference(result.pos),read=result.operations.filter(op=>op.type==='read');
     if(this.acquisition){this.acquisition.lastPos=result.pos;this.acquisition.focusPos=read.at(-1)?.pos??start}
-    this.live={endPos:overlap?Math.max(this.pos,result.pos):result.pos,focusPos:read.at(-1)?.pos??start,operations:result.operations};
+    this.live={endPos:overlap?Math.max(this.pos,result.pos):result.pos,focusPos:read.at(-1)?.pos??this.focusPos,operations:result.operations,replay:result.replay};
     return {type:'interim',candidate:location?{pos:start,reference:location,matched:read.length,endPos:result.pos}:null,
-     preview:{startPos:start,endPos:result.pos,focusPos:read.at(-1)?.pos??start,operations:result.operations,location},
+     preview:{startPos:start,endPos:result.pos,focusPos:read.at(-1)?.pos??start,operations:result.operations,location,repetition:result.repetition,consumed:result.at,heardCount:heard.length},
      previewIndex:result.pos===this.corpus.words.length?this.units.length:ref.index,previewCursor:ref?.word||0,previewError:result.error!==null,...this.snapshot()};
    }
-   this.live=null;
-   let unclear=0;
+   this.live=null;this.replay=result.replay;
+   let unclear=result.repeatAmbiguous?1:0;
    if(speech){
     this.speechTail=[];this.speechTailPos=null;
     if(!this.strict&&result.error!==null&&nearbyTail(this.corpus.words,result.pos,result.pending,this.end)){
@@ -477,22 +517,26 @@
    this.changed=[...changed];
    const events=[...new Set(result.operations.filter(op=>op.type!=='unheard').map(op=>op.pos))].map(pos=>({type:newErrors.has(pos)?newErrors.get(pos)==='partial'?'uncertain':'error':'read',...this.corpus.reference(pos)}));
    if(result.error!==null)events.push({type:result.errorSeverity==='error'?'error':'uncertain',...this.corpus.reference(result.error)});
-   return {type:result.error!==null?'mismatch':this.complete?'complete':newErrors.size?'continued':unclear&&!events.length?'unclear':finished.length?'matched':'progress',events,location,finished,unclear,continued:newErrors.size>0,definiteErrors:events.some(e=>e.type==='error'),autoHint,...this.snapshot()};
+   return {type:result.error!==null?'mismatch':this.complete?'complete':result.repetition&&!events.length?'repeated':newErrors.size?'continued':unclear&&!events.length?'unclear':finished.length?'matched':'progress',events,location,finished,unclear,continued:newErrors.size>0,definiteErrors:events.some(e=>e.type==='error'),autoHint,repetition:result.repetition,...this.snapshot()};
   }
   hint(){if(!this.complete){const hints=this.hints.get(this.index)||new Set();let i=this.errorIndex??this.cursor;while(i<this.units[this.index].words.length&&hints.has(i))i++;if(i<this.units[this.index].words.length)hints.add(i);this.hints.set(this.index,hints)}return this.snapshot()}
   peek(){if(!this.complete)this.peeked.has(this.index)?this.peeked.delete(this.index):this.peeked.add(this.index);return this.snapshot()}
-  skip(){if(!this.complete){const i=this.index,outcome=this.outcomes.find(o=>o.index===i);if(outcome)outcome.assisted=true;else this.outcomes.push({index:i,assisted:true,partial:true});this.pos=Math.min(this.end,this.corpus.starts[i+1]);this.focusPos=Math.min(this.pos,this.end-1);this.pending=[];this.errorIndex=null;this.errorPos=null;this.changed=[i]}return this.snapshot()}
+  skip(){if(!this.complete){const i=this.index,outcome=this.outcomes.find(o=>o.index===i);if(outcome)outcome.assisted=true;else this.outcomes.push({index:i,assisted:true,partial:true});this.pos=Math.min(this.end,this.corpus.starts[i+1]);this.focusPos=Math.min(this.pos,this.end-1);this.pending=[];this.replay=null;this.errorIndex=null;this.errorPos=null;this.changed=[i]}return this.snapshot()}
  }
 
  // One instance per native recognition cycle. Read the entire result snapshot:
  // interim entries can be revised, removed, or finalized independently.
  class SpeechInput{
-  constructor(follower){this.follower=follower;this.finals=new Set();this.liveKey=''}
+  constructor(follower){this.follower=follower;this.finals=new Set();this.finalCursor=0;this.liveKey='';this.choices=new Map()}
   choose(result,prefix=''){
    const alternatives=Array.from(result).slice(0,3).filter(a=>typeof a?.transcript==='string'&&a.transcript.trim());
    if(!alternatives.length)return {transcript:'',confidence:null};
    const top=alternatives[0],confidence=a=>Number.isFinite(a.confidence)&&a.confidence>0?a.confidence:null,topConfidence=confidence(top);
    if(alternatives.length===1)return {transcript:top.transcript,confidence:topConfidence};
+   if(!this.follower.locating&&!this.follower.replay){
+    const heard=heardWords(prefix+' '+top.transcript),run=scan(this.follower.corpus.words,this.follower.pos,heard,0,512,this.follower.end);
+    if(run.at===heard.length)return {transcript:top.transcript,confidence:topConfidence};
+   }
    let best=top,bestScore=-Infinity,topLocation=null;
    for(let i=0;i<alternatives.length;i++){
     const a=alternatives[i],value=confidence(a);
@@ -505,7 +549,8 @@
     const location=preview?.location;
     if(i===0)topLocation=location;
     else if(topLocation&&location&&(topLocation.sura!==location.sura||topLocation.aya!==location.aya||topLocation.word!==location.word))continue;
-    const ops=preview?.operations||[],reads=ops.filter(op=>op.type==='read').length,errors=ops.length-reads;
+    const ops=preview?.operations||[],reads=ops.filter(op=>op.type==='read').length+(preview?.repetition?.positions.length||0),errors=ops.filter(op=>op.type!=='read').length;
+    if(i===0&&reads&&!errors&&preview.consumed===preview.heardCount)return {transcript:top.transcript,confidence:topConfidence};
     const score=reads*4-errors*3-(preview?.endPos===preview?.startPos?2:0)-i*.5;
     if(score>bestScore+1){best=a;bestScore=score}
    }
@@ -513,15 +558,21 @@
   }
   update(results){
    const commits=[],parts=[],confidences=[];let hadSpeech=false;
-   for(let i=0;i<results.length;i++){
+   for(let i=this.finalCursor;i<results.length;i++){
     const result=results[i];
     if(result.isFinal&&this.finals.has(i))continue;
-    const chosen=this.choose(result,result.isFinal?'':parts.join(' '));
+    const prefix=result.isFinal?'':parts.join(' '),f=this.follower;
+    const context=[f.pos,f.start,f.end,f.strict,f.locating,f.acquisition?.pos,f.replay?.pos].join(':');
+    const signature=JSON.stringify(Array.from(result).slice(0,3).map(a=>[a?.transcript,a?.confidence]));
+    const cached=this.choices.get(i),chosen=cached?.signature===signature&&cached.prefix===prefix&&cached.context===context?cached.chosen:this.choose(result,prefix);
+    this.choices.set(i,{signature,prefix,context,chosen});
     if(!chosen.transcript.trim())continue;hadSpeech=true;
     if(result.isFinal){
-     this.finals.add(i);commits.push(this.follower.feed(chosen.transcript,{final:true,speech:true,confidence:chosen.confidence}));
+     this.finals.add(i);this.choices.clear();while(this.finals.has(this.finalCursor))this.finalCursor++;
+     commits.push(this.follower.feed(chosen.transcript,{final:true,speech:true,confidence:chosen.confidence}));
     }else{parts.push(chosen.transcript);if(chosen.confidence!==null)confidences.push(chosen.confidence)}
    }
+   for(const i of this.choices.keys())if(i>=results.length)this.choices.delete(i);
    const key=parts.join('\n'),changed=commits.length>0||key!==this.liveKey;this.liveKey=key;
    let live=null;
    if(key&&changed&&!this.follower.complete)live=this.follower.feed(parts.join(' '),{speech:true,confidence:confidences.length?Math.min(...confidences):null});
