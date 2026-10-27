@@ -473,7 +473,7 @@
    else if(id==='recitationStartHere'&&selectedWord){$('#recitationWordMenu').hidden=true;goToReference(selectedWord)}
    else if(id==='recitationFindPhrase'&&selectedWord){const words=corpus.units[selectedWord.index].words.slice(selectedWord.word,selectedWord.word+4);$('#recitationWordMenu').hidden=true;setPopover('Search',true);$('#recitationSearchInput').value=words.map(w=>w.forms[0]).join(' ');searchPassage()}
    else if(id==='recitationJournal'||id==='recitationJournalSettings'){stop();setPopover('Menu',false);setSettings(false);onJournalOpen()}
-   else if(id==='recitationReload'){stop();const url=new URL(root.location.href);url.searchParams.set('update',String(BUILD));root.location.replace(url.href)}
+   else if(id==='recitationReload'){stop();const url=new URL(root.location.href);url.searchParams.set('update',String(BUILD));if(url.href===root.location.href)root.location.reload();else root.location.replace(url.href)}
    else if(id==='recitationResync'){if(wantsAudio)abortRecognition();applyScope();session.beginSearch();manualStart=false;locationResolved=false;paintPage();message('اقرأ كلمات متتابعة لتحديد موضعك مجددًا.');if(wantsAudio)scheduleRestart(0)}
    else if(id==='recitationMenu'){setPopover('Menu',$('#recitationMenuPanel').hidden)}
    else if(id==='recitationMenuClose'){setPopover('Menu',false);$('#recitationMenu').focus()}
