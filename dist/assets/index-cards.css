@@ -1,0 +1,118 @@
+/* Clear division actions share the index's green, teal and warm gold palette. */
+.cards-grid:not(.list-view) {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+}
+.card-division {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 58px;
+  padding: 14px 14px 6px;
+}
+.division-badge {
+  --division-color: #123F35;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: 7px;
+  min-height: 40px;
+  padding: 7px 12px;
+  border: 1px solid #FFFFFF24;
+  border-radius: 9px;
+  background: var(--division-color);
+  color: #FFFFFF;
+  font: 600 13px/1.5 var(--font);
+  white-space: nowrap;
+  box-shadow: 0 3px 7px #123F3518, inset 0 1px 0 #FFFFFF14;
+  transition: transform .15s, box-shadow .15s, filter .15s;
+}
+.division-badge--eighth { --division-color: #286248; }
+.division-badge--quarter { --division-color: #2C6572; }
+.division-badge--half { --division-color: #775A2C; }
+.division-badge--hizb { --division-color: #123F35; }
+.division-badge .icon { width: 17px; height: 17px; stroke-width: 1.8; }
+.division-parent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: 4px;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid #B28A466B;
+  border-radius: 8px;
+  background: #B28A4612;
+  color: #785923;
+  font: 600 11px/1.5 var(--font);
+  white-space: nowrap;
+  transition: background .15s, border-color .15s;
+}
+.division-parent bdi { font-variant-numeric: tabular-nums; }
+.division-parent .icon { width: 11px; height: 11px; }
+.division-juz {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+  color: var(--muted);
+  font: 10px/1.7 var(--font);
+  white-space: nowrap;
+}
+.division-coverage {
+  margin-inline-start: auto;
+  color: var(--muted);
+  font: 10px/1.7 var(--font);
+}
+.division-badge:active { transform: translateY(1px); }
+.division-badge:focus-visible, .division-parent:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 3px;
+}
+[data-theme="dark"] .division-parent { background: #B28A461C; color: #E2C58C; }
+[data-theme="dark"] .division-badge { border-color: #FFFFFF38; box-shadow: 0 3px 8px #0002; }
+@media (hover: hover) {
+  .division-badge:hover { filter: brightness(1.12); transform: translateY(-1px); box-shadow: 0 5px 10px #123F3526; }
+  .division-parent:hover { background: #B28A4626; border-color: var(--gold); }
+}
+/* The actions have their own row, so buttons are never nested inside buttons. */
+.cards-grid .division-card .card-main {
+  height: 104px;
+  min-height: 104px;
+  padding: 4px 18px 14px;
+}
+.cards-grid .division-card .card-content {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 50px 20px;
+  gap: 0;
+}
+.eighth-card.division-card .eighth-main {
+  height: 104px;
+  min-height: 104px;
+  padding-top: 4px;
+}
+.eighth-card.division-card .eighth-body { grid-template-rows: 50px 20px 14px; }
+.cards-grid.list-view .division-card { grid-template-rows: auto 1fr; }
+.list-view .division-card .card-division { grid-column: 1; grid-row: 1; }
+.list-view .division-card .card-main { grid-column: 1; grid-row: 2; }
+.list-view .division-card .card-footer { grid-column: 2; grid-row: 1 / span 2; }
+@media (max-width: 760px) {
+  .cards-grid.list-view .division-card { grid-template-rows: auto 1fr auto; }
+  .list-view .division-card .card-footer { grid-column: 1; grid-row: 3; }
+}
+@media (max-width: 540px) {
+  .card-division { gap: 6px; padding-inline: 12px; }
+  .division-badge { min-height: 44px; padding-inline: 10px; font-size: 13px; gap: 6px; }
+  .division-parent { min-height: 44px; padding-inline: 7px; }
+  .cards-grid .division-card .card-main { padding-inline: 16px; }
+}
+@media (max-width: 350px) {
+  .card-division { padding-inline: 10px; gap: 5px; }
+  .division-badge { padding-inline: 8px; gap: 5px; font-size: 12px; }
+  .division-badge .icon { width: 15px; height: 15px; }
+  .division-parent { padding-inline: 6px; font-size: 10px; }
+  .division-juz, .division-coverage { font-size: 9px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .division-badge, .division-parent { transition: none; }
+  .division-badge:hover, .division-badge:active { transform: none; }
+}
