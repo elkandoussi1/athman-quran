@@ -1,7 +1,7 @@
 /* Explicit microphone capture for the optional remote engine and mic test. */
 (function(root,factory){const api=factory(root);if(typeof module==='object'&&module.exports)module.exports=api;else root.ATHMAN_CAPTURE=api})(typeof window==='object'?window:globalThis,function(root){
  'use strict';
- const workletURL=root.document?.currentScript?new URL('recitation-worklet.js?v=30',root.document.currentScript.src).href:'assets/recitation-worklet.js?v=30';
+ const workletURL=root.document?.currentScript?new URL('recitation-worklet.js?v=31',root.document.currentScript.src).href:'assets/recitation-worklet.js?v=31';
  const rms=samples=>Math.sqrt(samples.reduce((sum,value)=>sum+value*value,0)/Math.max(1,samples.length));
  function resample(samples,rate,target=16000){
   if(rate===target)return Float32Array.from(samples);if(!(rate>0&&target>0))throw Error('Invalid sample rate');
@@ -46,5 +46,5 @@
    this.stream=this.context=this.node=this.source=null;
   }
  }
- return {version:30,Capture,rms,resample,wav};
+ return {version:31,Capture,rms,resample,wav};
 });

@@ -48,5 +48,5 @@
   while(i||j){if(i&&j&&dp[i][j]===dp[i-1][j-1]+(a[i-1]===b[j-1]?0:1)){if(a[i-1]!==b[j-1])edits.push({type:'substitution',expectedIndex:i-1,heardIndex:j-1,expected:a[i-1],heard:b[j-1]});i--;j--}else if(i&&dp[i][j]===dp[i-1][j]+1){edits.push({type:'missing',expectedIndex:i-1,expected:a[i-1]});i--}else{edits.push({type:'extra',heardIndex:j-1,heard:b[j-1]});j--}}
   return edits.reverse();
  }
- return {version:30,normalize,phonetic,distance,compare,alignWindow,characterEdits};
+ return {version:31,normalize,phonetic,distance,compare,alignWindow,characterEdits};
 });

@@ -37,7 +37,7 @@ if(last&&!last.kind&&Number.isInteger(last.eighth))last={...last,kind:'eighth',i
 if(!last||!Number.isInteger(last.id)||!getPart(last.kind,last.id))last=null;
 let mode='hizbs',query='',juz='',range=0,limit=12,view=readStore('view','grid');
 let detailKind='eighth';
-let detailId=null,readerKind=null,readerId=null,returnHash=null,readerSequence=0,quranPromise=null,toastTimeout;
+let detailId=null,readerKind=null,readerId=null,returnHash=null,readerSequence=0,quranPromise=null,quranData=null,toastTimeout;
 let recitationController=null,recitationCorpus=null,studyPanel=null;
 let studyStorage;try{studyStorage=localStorage}catch{}
 const practiceStore=new window.ATHMAN_STUDY.Store(studyStorage);
@@ -154,29 +154,34 @@ function toggleReviewed(kind,id){
  renderProgress();toast(reviewed?'سُجّلت مراجعة هذا '+PARTS[kind].label:'أُلغي تسجيل المراجعة');
 }
 function bindDone(el){$$('[data-review]',el).forEach(b=>b.addEventListener('click',()=>{const [kind,id]=b.dataset.review.split(':');toggleReviewed(kind,+id)}))}
-function loadQuran(){if(!quranPromise)quranPromise=fetch('assets/quran.json').then(r=>{if(!r.ok)throw Error('data');return r.json()}).catch(e=>{quranPromise=null;throw e});return quranPromise}
+function loadQuran(){if(!quranPromise)quranPromise=fetch('assets/quran.json').then(r=>{if(!r.ok)throw Error('data');return r.json()}).then(q=>(quranData=q)).catch(e=>{quranPromise=null;throw e});return quranPromise}
+function ensureRecitationCorpus(q){if(!recitationCorpus)recitationCorpus=new window.ATHMAN_RECITATION.Corpus(q.map(([sura,aya,text])=>({sura,aya,text,label:`سورة ${suraName(sura)}، الآية ${aya}`})));return recitationCorpus}
 
 function readerBaseHash(){
  const [path,search='']=(location.hash||'#/').split('?'),params=new URLSearchParams(search);
  for(const key of ['thumn','half','quarter','surah'])params.delete(key);
  return path+(params.size?'?'+params.toString():'');
 }
-function prepareReader(kind,id){
+function prepareReader(kind,id,q){
  recitationController?.destroy();recitationController=null;
- if(!reader.open){returnHash=readerBaseHash();reader.showModal();document.body.style.overflow='hidden'}
+ if(!reader.open)returnHash=readerBaseHash();
  readerKind=kind;readerId=id;const cfg=PARTS[kind],e=cfg?getPart(kind,id):null,s=kind==='surah'?D.surahs[id-1]:null;
  const title=e?e.title:'سورة '+s.name,kicker=e?`الحزب ${ordinal(e.hizb)} · ${cfg.label} ${ordinal(e.pos)}`:`${s.revelation} · ${ayahCount(s.ayahs)} · رواية ورش`;
  const key=e?cfg.type+':'+id:'s:'+id;
- $('#readerContent').innerHTML=`<div class="reader-toolbar"><button class="icon-button" data-close-reader aria-label="إغلاق القراءة">${icon('close')}</button><div class="reader-heading"><span>${kicker}</span><h2 id="readerTitle">${esc(title)}</h2></div><div class="reader-tools"><button class="recitation-toggle" id="recitationToggle" type="button" aria-label="تسميع وإخفاء الآيات" aria-pressed="false" disabled>${icon('mic')}تسميع</button><button class="font-button" id="fontSmaller" aria-label="تصغير الخط">أ−</button><button class="font-button" id="fontLarger" aria-label="تكبير الخط">أ+</button><button class="icon-button" id="copyPassage" aria-label="نسخ النص">${icon('copy')}</button>${saveButton(key,'الموضع')}</div></div><div class="reader-reference">${e?`${'سورة '+sura(e.sura)+'، الآية '+displayNumber(e.aya)} — ${sura(e.endSura)}، الآية ${displayNumber(e.endAya)}`:`سورة ${s.name} كاملة`} · ترقيم ورش</div><div id="recitationMount"></div><div class="reader-text" id="readerText" style="--quran-size:${fontSize}px"><div class="reader-loading">جارٍ فتح الآيات…</div></div><p class="reader-source">النص والخط: مجمع الملك فهد لطباعة المصحف الشريف · رواية ورش عن نافع</p><div class="reader-bottom"><button class="pager-button prev" id="readerPrev" ${id===1?'disabled':''}>${icon('arrow')} ${e?cfg.label+' السابق':'السورة السابقة'}</button>${e?doneButton(e,kind):`<a class="primary-button" href="#/hizb/${Math.ceil(s.firstEighth/8)}" data-close-reader>موضع بداية السورة ${icon('layers')}</a>`}<button class="pager-button" id="readerNext" ${id===(e?cfg.list.length:114)?'disabled':''}>${e?cfg.label+' التالي':'السورة التالية'} ${icon('arrow')}</button></div>`;
+ $('#readerContent').innerHTML=`<div class="reader-toolbar"><button class="icon-button" data-close-reader aria-label="إغلاق القراءة">${icon('close')}</button><div class="reader-heading"><span>${kicker}</span><h2 id="readerTitle">${esc(title)}</h2></div><div class="reader-tools"><button class="recitation-toggle" id="recitationToggle" type="button" aria-label="تسميع وإخفاء الآيات" aria-pressed="false" disabled>${icon('mic')}تسميع</button><button class="font-button" id="fontSmaller" aria-label="تصغير الخط">أ−</button><button class="font-button" id="fontLarger" aria-label="تكبير الخط">أ+</button><button class="icon-button" id="copyPassage" aria-label="نسخ النص">${icon('copy')}</button>${saveButton(key,'الموضع')}</div></div><div class="reader-reference">${e?`${'سورة '+sura(e.sura)+'، الآية '+displayNumber(e.aya)} — ${sura(e.endSura)}، الآية ${displayNumber(e.endAya)}`:`سورة ${s.name} كاملة`} · ترقيم ورش</div><div id="recitationMount"></div><div class="reader-text" id="readerText" style="--quran-size:${fontSize}px"></div><p class="reader-source">النص والخط: مجمع الملك فهد لطباعة المصحف الشريف · رواية ورش عن نافع</p><div class="reader-bottom"><button class="pager-button prev" id="readerPrev" ${id===1?'disabled':''}>${icon('arrow')} ${e?cfg.label+' السابق':'السورة السابقة'}</button>${e?doneButton(e,kind):`<a class="primary-button" href="#/hizb/${Math.ceil(s.firstEighth/8)}" data-close-reader>موضع بداية السورة ${icon('layers')}</a>`}<button class="pager-button" id="readerNext" ${id===(e?cfg.list.length:114)?'disabled':''}>${e?cfg.label+' التالي':'السورة التالية'} ${icon('arrow')}</button></div>`;
  $('#readerPrev').addEventListener('click',()=>e?openPart(kind,id-1):openSurah(id-1));$('#readerNext').addEventListener('click',()=>e?openPart(kind,id+1):openSurah(id+1));
  $$('[data-close-reader]',reader).forEach(b=>b.addEventListener('click',()=>closeReader(b.tagName==='A')));
  $('#fontSmaller').addEventListener('click',()=>adjustFont(-2));$('#fontLarger').addEventListener('click',()=>adjustFont(2));
  $('#copyPassage').addEventListener('click',copyPassage);bindCardActions(reader);bindDone(reader);reader.scrollTop=0;
  const hash=e?`#/hizb/${e.hizb}?view=${kind}&${cfg.query}=${id}`:`#/surahs?surah=${id}`;history.replaceState(null,'',hash);
- return ++readerSequence;
+ $('#readerText').innerHTML=e?passageHTML(q.slice(e.startIndex,e.endIndex+1),e):passageHTML(q.filter(v=>v[0]===id));
+ mountRecitation(q);
+ // Build the complete modern reader in one task BEFORE opening the dialog.
+ // Network waits stay on the current screen; no legacy reader/loading flash.
+ if(!reader.open){reader.showModal();document.body.style.overflow='hidden'}
 }
 function mountRecitation(q){
- if(!recitationCorpus)recitationCorpus=new window.ATHMAN_RECITATION.Corpus(q.map(([sura,aya,text])=>({sura,aya,text,label:`سورة ${suraName(sura)}، الآية ${aya}`})));
+ ensureRecitationCorpus(q);
  recitationController=window.ATHMAN_RECITATION_UI.mount({reader,source:$('#readerText'),host:$('#recitationMount'),toggle:$('#recitationToggle'),fontSize,corpus:recitationCorpus,study:practiceStore,onJournalOpen:openJournal,resolveLocation:ref=>followReaderLocation(ref,q),adjacentReference:direction=>adjacentReaderReference(direction,q),contextFor:u=>D.eighths.findLast(e=>e.sura<u.sura||e.sura===u.sura&&e.aya<=u.aya)||{}});
  recitationController.open();
 }
@@ -240,17 +245,22 @@ function passageHTML(verses,e=null){
 async function openPart(kind,id,{listen=false}={}){
  if(!Number.isInteger(id)||id<1)return;const e=getPart(kind,id);if(!e)return;
  last={kind,id,eighth:e.firstEighth||e.id,time:Date.now()};store('last',last);updateResume();
- const seq=prepareReader(kind,id);
- try{const q=await loadQuran();if(seq!==readerSequence||!reader.open)return;$('#readerText').innerHTML=passageHTML(q.slice(e.startIndex,e.endIndex+1),e);mountRecitation(q);if(listen)recitationController.startListening()}catch{if(seq===readerSequence&&reader.open)readerError(()=>openPart(kind,id,{listen}))}
+ return openReader(kind,id,{listen});
 }
 async function openSurah(id){
- if(!Number.isInteger(id)||id<1||id>114)return;const seq=prepareReader('surah',id);
- try{const q=await loadQuran();if(seq!==readerSequence||!reader.open)return;$('#readerText').innerHTML=passageHTML(q.filter(v=>v[0]===id));mountRecitation(q)}catch{if(seq===readerSequence&&reader.open)readerError(()=>openSurah(id))}
+ if(!Number.isInteger(id)||id<1||id>114)return;return openReader('surah',id);
 }
-function readerError(retry){$('#readerText').innerHTML='<div class="reader-error">تعذّر تحميل الآيات. تحقق من الاتصال.<br><button class="primary-button" id="retryReader">إعادة المحاولة</button></div>';$('#retryReader').addEventListener('click',retry)}
+async function openReader(kind,id,{listen=false}={}){
+ const seq=++readerSequence;main.setAttribute('aria-busy','true');
+ try{
+  const q=quranData||await loadQuran();if(seq!==readerSequence)return;
+  prepareReader(kind,id,q);if(listen)recitationController.startListening();
+ }catch{if(seq===readerSequence){toast('تعذّر فتح الآيات. تحقق من الاتصال ثم اضغط المقطع مجددًا.')}}
+ finally{if(seq===readerSequence)main.removeAttribute('aria-busy')}
+}
 function adjustFont(amount){fontSize=Math.max(22,Math.min(46,fontSize+amount));$('#readerText').style.setProperty('--quran-size',fontSize+'px');recitationController?.updateFont(fontSize);store('font',fontSize)}
 async function copyPassage(){try{const content=$('#readerText');if($('.reader-loading',content)||$('.reader-error',content)){toast('انتظر حتى تظهر الآيات');return}const text=[...content.querySelectorAll('.verse')].map(v=>{const copy=v.cloneNode(true);$('.verse-number',copy)?.remove();return copy.textContent.trim()+' '+verseNumberText(v.dataset.aya)}).join('\n');await navigator.clipboard.writeText(text);toast('نُسخ نص القراءة')}catch{toast('تعذّر النسخ. يمكنك تحديد النص ونسخه.') }}
-function closeReader(navigating=false){if(!reader.open)return;recitationController?.destroy();recitationController=null;reader.close();if(!navigating&&returnHash)history.replaceState(null,'',returnHash);returnHash=null;document.body.style.overflow='';readerSequence++}
+function closeReader(navigating=false){readerSequence++;main.removeAttribute('aria-busy');if(!reader.open)return;recitationController?.destroy();recitationController=null;reader.close();if(!navigating&&returnHash)history.replaceState(null,'',returnHash);returnHash=null;document.body.style.overflow=''}
 reader.addEventListener('cancel',event=>{event.preventDefault();closeReader()});
 reader.addEventListener('click',event=>{if(event.target===reader){const r=reader.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeReader()}});
 function setActiveNav(key){$$('[data-nav]').forEach(x=>{x.classList.toggle('active',x.dataset.nav===key);x.toggleAttribute('aria-current',x.dataset.nav===key);if(x.dataset.nav===key)x.setAttribute('aria-current','page')})}
@@ -259,7 +269,7 @@ function syncSidebar(){$('#sidebar').inert=mobileMedia.matches&&!$('#sidebar').c
 mobileMedia.addEventListener('change',syncSidebar);
 function closeMenu(){$('#sidebar').classList.remove('open');$('#mobileShade').classList.remove('show');$('#menuButton').setAttribute('aria-expanded','false');syncSidebar()}
 function route(){
- if(reader.open)closeReader(true);closeMenu();
+ closeReader(true);closeMenu();
  const hash=location.hash||'#/',[path,search='']=hash.split('?'),params=new URLSearchParams(search),match=path.match(/^#\/hizb\/(\d+)$/);
  const previousMode=mode;
  if(match){
@@ -290,5 +300,7 @@ $('#aboutClose').addEventListener('click',()=>about.close());$('#aboutDone').add
 about.addEventListener('click',event=>{if(event.target===about){const r=about.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)about.close()}});
 document.addEventListener('keydown',event=>{if(event.key==='/'&&!reader.open&&!about.open&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){const input=$('#searchInput');if(input){event.preventDefault();input.focus()}}if(event.key==='Escape')closeMenu()});
 $('.skip-link').addEventListener('click',event=>{event.preventDefault();main.focus();main.scrollIntoView({behavior:'instant'})});
+// Start local-data loading while browsing, not after the first reading click.
+loadQuran().then(ensureRecitationCorpus).catch(()=>{});
 route();
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).catch(()=>{}));

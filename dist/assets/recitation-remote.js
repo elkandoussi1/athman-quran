@@ -54,5 +54,5 @@
   abort(){this.active=false;this.generation++;this.capture?.stop();this.capture=null;this.request?.abort();this.cancel(this.timeout);this.timeout=null;this.request=null;this.pending=false;this.queue=[];this.segmenter=null;this.onLevel(null);this.onPending(false)}
   stop(){this.abort();this.emit('audioend');this.emit('end')}
  }
- return {version:30,Recognition,Segmenter,endpointURL};
+ return {version:31,Recognition,Segmenter,endpointURL};
 });

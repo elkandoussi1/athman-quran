@@ -13,7 +13,7 @@
    if(tracker)item.tracker={before:tracker.before,after:tracker.after,previewEnd:tracker.previewEnd,result:tracker.result,strict:!!tracker.strict,scope:tracker.scope};
    this.records.push(item);if(this.records.length>this.limit){this.records.shift();this.dropped++}return item;
   }
-  export(metadata={}){return {version:30,containsTranscripts:true,audioIncluded:false,storage:'memory-only',...metadata,dropped:this.dropped,records:this.records.map(record=>({...record}))}}
+  export(metadata={}){return {version:31,containsTranscripts:true,audioIncluded:false,storage:'memory-only',...metadata,dropped:this.dropped,records:this.records.map(record=>({...record}))}}
  }
- return {version:30,Journal};
+ return {version:31,Journal};
 });

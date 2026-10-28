@@ -633,14 +633,49 @@
  // One instance per native recognition cycle. Read the entire result snapshot:
  // interim entries can be revised, removed, or finalized independently.
  class SpeechInput{
-  constructor(follower){this.follower=follower;this.finals=new Set();this.finalCursor=0;this.liveKey='';this.choices=new Map()}
+  constructor(follower){this.follower=follower;this.finals=new Set();this.finalCursor=0;this.liveKey='';this.choices=new Map();this.finalSignatures=new Map();this.lastInterim=null;this.rollingStart=null}
   // Some engines restart the result list after a final, reusing index 0 for new
   // speech. Detect that WITHOUT re-reading settled finals (they stay immutable):
   // the list became shorter than what was consumed, or the event says its lowest
-  // changed index is already-settled while it carries nothing beyond them.
+  // changed index points into the already-settled part of the list.
   listRestarted(results,resultIndex){
    if(!this.finalCursor)return false;
-   return results.length<this.finalCursor||Number.isInteger(resultIndex)&&resultIndex<this.finalCursor&&results.length<=this.finalCursor;
+   return results.length<this.finalCursor||Number.isInteger(resultIndex)&&resultIndex>=0&&resultIndex<this.finalCursor;
+  }
+  handoffInterim(text,slot){
+   const previous=this.lastInterim,f=this.follower;
+   if(!previous||previous.slot!==slot||!f.live||f.strict)return;
+   const old=heardWords(previous.text),next=heardWords(text);
+   // A rolling provider drops a prefix and appends new words in the SAME
+   // interim slot. Ordinary extensions, revisions and withdrawals stay fully
+   // reversible. Require two actually supplied overlapping words plus a fully
+   // matched discarded prefix, not merely the next likely Quran word.
+   if(old.length<3||next.length<3||next.length>32||old[0]===next[0])return;
+   let overlap=0;
+   for(let n=Math.min(old.length-1,next.length-1);n>=2;n--)if(old.slice(-n).every((w,i)=>w===next[i])&&next.slice(0,n).join('').length>=4){overlap=n;break}
+   if(!overlap)return;
+   const prefix=old.slice(0,-overlap).join(' '),probe=Object.assign(Object.create(Follower.prototype),f,{acquisition:f.acquisition?{...f.acquisition}:null,live:null});
+   const preview=probe.feed(prefix,{speech:true}).preview;
+   if(!preview||preview.consumed!==preview.heardCount||!preview.operations.length||preview.operations.some(op=>op.type!=='read'))return;
+   // Only the discarded prefix crosses the boundary, and only provisionally.
+   // It never generates read credit, mistakes or journal records. The current
+   // window remains retractable and its final can certify only words it sends.
+   if(this.rollingStart===null)this.rollingStart=f.pos;
+   f.feed(prefix,{speech:true});f.endUtterance();return preview.operations.map(op=>op.pos);
+  }
+  commitFinal(chosen){
+   const f=this.follower,start=this.rollingStart;this.rollingStart=null;
+   // Some rolling providers eventually return the WHOLE utterance as final.
+   // Reconcile it against its original local anchor, rather than trying to
+   // match a long cumulative final against just the last few source words.
+   // The actual supplied final must reach the retained frontier in a read-only
+   // probe before any earlier provisional words can receive final credit.
+   if(start!==null&&start>=f.start&&start<f.pos&&!f.locating){
+    const probe=Object.assign(Object.create(Follower.prototype),f,{pos:start,focusPos:start,acquisition:null,live:null});
+    const preview=probe.feed(chosen.transcript,{speech:true}).preview;
+    if(preview?.startPos===start&&preview.endPos>=f.pos&&preview.consumed===preview.heardCount&&preview.operations.filter(op=>op.type==='read').length>=2){f.pos=start;f.focusPos=start}
+   }
+   return f.feed(chosen.transcript,{final:true,speech:true,confidence:chosen.confidence});
   }
   choose(result,prefix=''){
    const alternatives=Array.from(result).slice(0,3).filter(a=>typeof a?.transcript==='string'&&a.transcript.trim());
@@ -680,8 +715,18 @@
    return {transcript:best.transcript,confidence:confidence(best)};
   }
   update(results,{resultIndex=null}={}){
-   const commits=[],parts=[],confidences=[];let hadSpeech=false;
-   if(this.listRestarted(results,resultIndex)){this.finals=new Set();this.finalCursor=0;this.choices.clear()}
+   const commits=[],parts=[],confidences=[];let hadSpeech=false,firstInterim=null,handoff=[];
+   if(this.listRestarted(results,resultIndex)){
+    // resultIndex explicitly identifies changed slots, so checking their
+    // signatures does not re-read immutable settled prefixes on normal events.
+    const changed=Number.isInteger(resultIndex)&&resultIndex>=0&&resultIndex<results.length?resultIndex:0,old=this.finalSignatures.get(changed),item=results[changed];
+    const signature=item?.isFinal?JSON.stringify(Array.from(item).slice(0,3).map(a=>a?.transcript?.trim())):null;
+    if(!old||signature!==old){
+     for(const i of this.finals)if(i>=changed)this.finals.delete(i);
+     for(const i of this.finalSignatures.keys())if(i>=changed)this.finalSignatures.delete(i);
+     this.finalCursor=changed;this.choices.clear();
+    }
+   }
    for(let i=this.finalCursor;i<results.length;i++){
     const result=results[i];
     if(result.isFinal&&this.finals.has(i))continue;
@@ -692,19 +737,24 @@
     this.choices.set(i,{signature,prefix,context,chosen});
     const hasText=!!chosen.transcript.trim();if(hasText)hadSpeech=true;
     if(result.isFinal){
+     this.finalSignatures.set(i,JSON.stringify(Array.from(result).slice(0,3).map(a=>a?.transcript?.trim())));
      this.finals.add(i);this.choices.clear();while(this.finals.has(this.finalCursor))this.finalCursor++;
-     if(hasText)commits.push(this.follower.feed(chosen.transcript,{final:true,speech:true,confidence:chosen.confidence}));
-    }else if(hasText){parts.push(chosen.transcript);if(chosen.confidence!==null)confidences.push(chosen.confidence)}
+     if(hasText)commits.push(this.commitFinal(chosen));
+    }else if(hasText){if(firstInterim===null)firstInterim=i;parts.push(chosen.transcript);if(chosen.confidence!==null)confidences.push(chosen.confidence)}
    }
    for(const i of this.choices.keys())if(i>=results.length)this.choices.delete(i);
    const key=parts.join('\n'),changed=commits.length>0||key!==this.liveKey;this.liveKey=key;
    let live=null;
-   if(key&&changed&&!this.follower.complete)live=this.follower.feed(parts.join(' '),{speech:true,confidence:confidences.length?Math.min(...confidences):null});
+   if(key&&changed&&!this.follower.complete){
+    if(!commits.length)handoff=this.handoffInterim(parts.join(' '),firstInterim)||[];
+    live=this.follower.feed(parts.join(' '),{speech:true,confidence:confidences.length?Math.min(...confidences):null});
+   }
+   this.lastInterim=key?{text:parts.join(' '),slot:firstInterim}:null;
    // Removing all interim entries retracts the pending live hypothesis.
    if(!key)this.follower.live=null;
-   return {commits,preview:live?.preview||null,locating:live?.type==='locating',ambiguous:!!live?.ambiguous,choices:live?.choices||commits.at(-1)?.choices||[],invocation:!!live?.invocation,hadSpeech,changed};
+   return {commits,handoff,preview:live?.preview||null,locating:live?.type==='locating',ambiguous:!!live?.ambiguous,choices:live?.choices||commits.at(-1)?.choices||[],invocation:!!live?.invocation,hadSpeech,changed};
   }
  }
 
- return {version:30,normalize,variants,heardWords,sourceWords,matchSeverity,Session,Corpus,Follower,SpeechInput};
+ return {version:31,normalize,variants,heardWords,sourceWords,matchSeverity,Session,Corpus,Follower,SpeechInput};
 });

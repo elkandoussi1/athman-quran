@@ -134,5 +134,5 @@
    this.pending=pending;return pending;
   }
  }
- return {version:30,SpeechService,ScreenAwake};
+ return {version:31,SpeechService,ScreenAwake};
 });
