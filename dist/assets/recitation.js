@@ -694,5 +694,5 @@
   }
  }
 
- return {version:28,normalize,variants,heardWords,sourceWords,matchSeverity,Session,Corpus,Follower,SpeechInput};
+ return {version:29,normalize,variants,heardWords,sourceWords,matchSeverity,Session,Corpus,Follower,SpeechInput};
 });

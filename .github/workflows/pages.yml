@@ -31,6 +31,7 @@ jobs:
           node --check dist/assets/divisions.js
           node --check dist/assets/pwa.js
           node --check dist/assets/recitation.js
+          node --check dist/assets/recitation-audio.js
           node --check dist/assets/recitation-ui.js
           if [ -f dist/assets/support.js ]; then node --check dist/assets/support.js; fi
           node --check dist/sw.js
@@ -39,6 +40,7 @@ jobs:
           node test-recitation.cjs
           node test-refrain-recovery.cjs
           node test-result-list-reset.cjs
+          node test-audio-service.cjs
           python3 validate.py
       - name: Configure Pages
         uses: actions/configure-pages@v5
