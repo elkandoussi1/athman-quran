@@ -1,0 +1,8 @@
+{
+  "name": "athman-asr-gateway",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-28",
+  "vars": {
+    "ASR_ALLOWED_ORIGIN": "https://elkandoussi1.github.io"
+  }
+}

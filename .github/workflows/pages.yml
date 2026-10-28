@@ -27,21 +27,13 @@ jobs:
           persist-credentials: false
       - name: Verify Quran divisions and app files
         run: |
-          node --check dist/assets/app.js
-          node --check dist/assets/divisions.js
-          node --check dist/assets/pwa.js
-          node --check dist/assets/recitation.js
-          node --check dist/assets/recitation-audio.js
-          node --check dist/assets/recitation-ui.js
-          if [ -f dist/assets/support.js ]; then node --check dist/assets/support.js; fi
-          node --check dist/sw.js
-          node test-divisions.cjs
-          node test-pwa.cjs
-          node test-recitation.cjs
-          node test-refrain-recovery.cjs
-          node test-result-list-reset.cjs
-          node test-audio-service.cjs
+          for file in dist/assets/*.js dist/sw.js; do node --check "$file"; done
+          for test in test-*.cjs; do node "$test"; done
           python3 validate.py
+      - name: Verify optional ASR service contract
+        run: |
+          python3 -m pip install -r server/requirements-test.txt
+          python3 -m unittest discover -s server -p 'test_*.py'
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload app

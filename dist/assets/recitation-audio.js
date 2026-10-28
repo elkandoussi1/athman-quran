@@ -95,7 +95,7 @@
     if(!current())return;const code=event.error||'unknown';this.lastError=code;
     if(code==='no-speech'){this.publish('listening','no-speech');return}
     if(code==='language-not-supported'&&this.locale==='ar-MA'&&!this.fallback){this.fallback=true;this.locale='ar-SA';this.detach();this.publish('reconnecting','locale');this.later(0);return}
-    if(['not-allowed','service-not-allowed','audio-capture','language-not-supported'].includes(code)){this.fail(code);return}
+    if(['not-allowed','service-not-allowed','audio-capture','language-not-supported','asr-configuration','asr-access','asr-backlog','asr-response'].includes(code)){this.fail(code);return}
     this.recover(code);
    };
    rec.onend=()=>{
@@ -134,5 +134,5 @@
    this.pending=pending;return pending;
   }
  }
- return {version:29,SpeechService,ScreenAwake};
+ return {version:30,SpeechService,ScreenAwake};
 });

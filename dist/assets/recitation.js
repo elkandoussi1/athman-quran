@@ -1,10 +1,10 @@
 /* Word matching for memorisation practice; not a pronunciation/tajwid assessor. */
 (function(root,factory){
  'use strict';
- const api=factory();
+ const api=factory(typeof module==='object'&&module.exports?require('./recitation-matcher.js'):root.ATHMAN_MATCHER);
  if(typeof module==='object'&&module.exports)module.exports=api;
  else root.ATHMAN_RECITATION=api;
-})(typeof window!=='undefined'?window:globalThis,function(){
+})(typeof window!=='undefined'?window:globalThis,function(matcher){
  'use strict';
  function normalize(text){
   return String(text).normalize('NFKD').replace(/ۦ/g,'ي').replace(/ۥ/g,'و')
@@ -57,6 +57,7 @@
  const matches=(word,heard)=>word.forms.includes(heard);
  function matchSeverity(word,heard){
   if(!heard)return 'partial';
+  const resembling=matcher?.compare(word.forms,heard);if(resembling&&['phonetic','near'].includes(resembling.kind))return 'partial';
   if(heard.length<3)return word.forms.some(form=>form.includes(heard))?'partial':'error';
   for(const form of word.forms){
    const length=Math.max(form.length,heard.length);if(length>40)continue;
@@ -293,7 +294,7 @@
    candidates.sort((a,b)=>b.score-a.score||b.count-a.count||a.heardStart-b.heardStart);
    const best=candidates[0],pairs=new Set(best.pairs);
    const alternatives=candidates.filter(c=>!c.pairs.some(p=>pairs.has(p))&&c.score>=best.score-3);
-   if(alternatives.length)return {status:'ambiguous',alternatives:alternatives.length+1};
+   if(alternatives.length){const choices=[],seen=new Set();for(const candidate of [best,...alternatives]){const reference=this.reference(candidate.startPos);if(seen.has(reference.index))continue;seen.add(reference.index);choices.push({pos:candidate.startPos,reference,score:candidate.score});if(choices.length===4)break}return {status:'ambiguous',alternatives:alternatives.length+1,choices}}
    return {status:'found',pos:best.startPos,heardStart:best.heardStart,matched:best.count,evidenceCount:best.evidenceCount,edits:best.edits,score:best.score,endPos:best.endPos,reference:this.reference(best.startPos)};
   }
   search(text,{limit=40}={}){
@@ -339,6 +340,16 @@
    if(run.count&&run.at===tail.length)return true;
   }
   return false;
+ }
+ function sequenceRecovery(words,pos,heard,at,end){
+  if(!matcher||heard.length-at<4)return null;
+  const input=heard.slice(at,at+16),aligned=matcher.alignWindow(words,pos,input,{windowSize:Math.min(20,end-pos),maxHeard:16});
+  const exact=aligned.ops.filter(op=>op.type==='match'),near=aligned.ops.filter(op=>op.type==='near'),other=aligned.ops.filter(op=>op.type==='miss'||op.type==='extra');
+  const chars=exact.reduce((sum,op)=>sum+String(op.heard||'').length,0);
+  if(exact.length<2||chars<8||!near.length||near.length>exact.length+1||other.length>2||aligned.newCursor<=pos||aligned.newCursor>end)return null;
+  if(aligned.ops.at(-1)?.type!=='match'||exact.length/input.length<.4)return null;
+  const operations=aligned.ops.filter(op=>op.e!==null).map(op=>op.type==='match'?{type:'read',pos:op.e}:op.type==='near'?{type:'error',pos:op.e,kind:'phonetic',heard:op.heard,severity:'partial'}:op.h===null?{type:'unheard',pos:op.e}:{type:'error',pos:op.e,kind:'substitution',heard:op.heard,severity:'partial'});
+  return {operations,pos:aligned.newCursor,take:aligned.consumed};
  }
  function bridgeOperations(words,pos,heard,at,skip,extra){
   const table=Array.from({length:skip+1},()=>Array(extra+1).fill(null));table[0][0]={cost:0,matched:0,ops:[]};
@@ -433,6 +444,7 @@
    if((word.letterNames||tail.length===1&&['و','ف','ب','ل','ك','ال','يا'].includes(tail[0]))&&word.forms.some(w=>w.startsWith(joinedTail))){pending=tail;fragment=true;break}
    let next=strict?null:anchor(words,pos,heard,at,end);
    if(!next&&speech&&!strict){const fast=immediateAnchor(words,pos,heard,at,end);next=(heard.length-at<=2?fast:null)||anchor(words,pos,heard,at,end,true)||fast}
+   if(!next&&speech&&!strict){const recovered=sequenceRecovery(words,pos,heard,at,end);if(recovered){operations.push(...recovered.operations);for(const op of recovered.operations)if(op.type==='read')localReads.add(op.pos);pos=recovered.pos;at+=recovered.take;nextReplay=null;repeated.length=0;continue}}
    if(!next){error=pos;errorSeverity=matchSeverity(word,heard[at]);pending=tail.slice(-24);break}
    // Resume only at an exact later anchor; skipped words remain explicit errors.
    const bridge=bridgeOperations(words,pos,heard,at,next.skip,next.extra);operations.push(...bridge);for(const op of bridge)if(op.type==='read')localReads.add(op.pos);
@@ -499,7 +511,7 @@
     const buffer=[...this.locateBuffer,...incoming].slice(-512),found=this.acquisition||this.corpus.locate(buffer,{start:this.start,end:this.end});
     if(found.status!=='found'){
      if(final)this.locateBuffer=buffer;
-     return {type:'locating',ambiguous:found.status==='ambiguous',invocation:!!found.invocation,...this.snapshot()};
+     return {type:'locating',ambiguous:found.status==='ambiguous',choices:found.choices||[],invocation:!!found.invocation,...this.snapshot()};
     }
     if(!this.acquisition){this.acquisition={...found,leading:buffer.slice(0,found.heardStart)};this.locked=true}
     start=found.pos;const leading=this.acquisition.leading;
@@ -690,9 +702,9 @@
    if(key&&changed&&!this.follower.complete)live=this.follower.feed(parts.join(' '),{speech:true,confidence:confidences.length?Math.min(...confidences):null});
    // Removing all interim entries retracts the pending live hypothesis.
    if(!key)this.follower.live=null;
-   return {commits,preview:live?.preview||null,locating:live?.type==='locating',ambiguous:!!live?.ambiguous,invocation:!!live?.invocation,hadSpeech,changed};
+   return {commits,preview:live?.preview||null,locating:live?.type==='locating',ambiguous:!!live?.ambiguous,choices:live?.choices||commits.at(-1)?.choices||[],invocation:!!live?.invocation,hadSpeech,changed};
   }
  }
 
- return {version:29,normalize,variants,heardWords,sourceWords,matchSeverity,Session,Corpus,Follower,SpeechInput};
+ return {version:30,normalize,variants,heardWords,sourceWords,matchSeverity,Session,Corpus,Follower,SpeechInput};
 });

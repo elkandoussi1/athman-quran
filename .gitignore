@@ -4,3 +4,9 @@ __pycache__/
 .openai/
 .sites-runtime/
 *.zip
+.env
+.env.*
+!.env.example
+.venv/
+.pytest_cache/
+models/
