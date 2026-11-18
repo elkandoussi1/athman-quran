@@ -1,0 +1,170 @@
+/* أثمان — الإصدار 33: هوية مصحفية للقارئ والتسميع.
+   هذه الطبقة تجميلية فقط: لا تغيّر نص ورش ولا ترتيب الكلمات ولا أبعاد الأسطر
+   (الخلفيات والظلال لا تؤثر في التخطيط)، فتبقى مواضع الكلمات ثابتة عند الإخفاء. */
+
+/* ───────── لوحة الألوان ───────── */
+.recitation-reader{
+ --rec-bg:#0B1411;--rec-chrome:#0F1B17;--rec-paper:#111E1A;--rec-ink:#EEE7D4;--rec-muted:#A9B5AC;
+ --rec-line:#2A3B34;--rec-rule:#FFFFFF08;--rec-button:#18271F;--rec-accent:#D2AE67;--rec-gold:#C9A35E;
+ --rec-gold-soft:#C9A35E33;--rec-hint:#E8C877;--rec-error:#F09A88;--rec-heard:#7FD6A8;
+ --rec-mask:#EEE7D414;--rec-cursor:#C9A35E55;--rec-mask-edge:#EEE7D40F;--rec-frame:#C9A35E55;--rec-emerald:#1E6A50;
+ --rec-shadow:0 18px 50px #0007
+}
+.recitation-reader[data-recitation-theme="light"]{
+ --rec-bg:#EFE8D8;--rec-chrome:#F8F3E7;--rec-paper:#FFFCF4;--rec-ink:#1D2E27;--rec-muted:#5F6E65;
+ --rec-line:#DCCFB2;--rec-rule:#123F3510;--rec-button:#F1EADA;--rec-accent:#9A742F;--rec-gold:#A9813A;
+ --rec-gold-soft:#A9813A26;--rec-hint:#7A5410;--rec-error:#A3412B;--rec-heard:#17714A;
+ --rec-mask:#1D2E2714;--rec-cursor:#B8924A4D;--rec-mask-edge:#1D2E270D;--rec-frame:#B8924A80;--rec-emerald:#145440;
+ --rec-shadow:0 18px 44px #5A44201F
+}
+
+/* ───────── الإطار العام ───────── */
+.reader-dialog.recitation-reader[open]{
+ background:
+  radial-gradient(1200px 500px at 50% -10%,var(--rec-gold-soft),transparent 70%),
+  var(--rec-bg)
+}
+.recitation-reader .recitation-panel{background:transparent}
+
+/* الشريط العلوي: محاذاة مع عرض الصفحة */
+.recitation-header{
+ --w:880px;
+ padding-inline:max(12px,calc((100% - var(--w))/2)) max(12px,calc((100% - var(--w))/2));
+ background:color-mix(in srgb,var(--rec-chrome) 88%,transparent);
+ backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+ border-bottom:1px solid var(--rec-line);
+ box-shadow:0 1px 0 var(--rec-gold-soft)
+}
+.recitation-header-button{color:var(--rec-ink);border-radius:12px;transition:background .15s,color .15s}
+.recitation-header-button:hover{background:var(--rec-button);color:var(--rec-gold)}
+.recitation-header-button .icon{width:24px;height:24px;stroke-width:1.6}
+.recitation-header-button:first-child .icon{width:25px;height:25px}
+.recitation-gift .icon{width:23px;height:23px;color:var(--rec-gold)}
+.recitation-title-card{
+ position:relative;justify-content:center;text-align:center;min-height:44px;padding:3px 34px;
+ background:linear-gradient(var(--rec-paper),var(--rec-paper)) padding-box,
+  linear-gradient(90deg,transparent,var(--rec-frame),transparent) border-box;
+ border:1px solid transparent;border-radius:999px
+}
+.recitation-title-card>div{flex:0 1 auto}
+.recitation-title-card h2{font:700 18px/1.3 var(--serif);color:var(--rec-ink)}
+.recitation-title-card h2:before,.recitation-title-card h2:after{content:'۞';color:var(--rec-gold);font-size:11px;margin-inline:7px;vertical-align:middle;opacity:.8}
+.recitation-title-card p{font:10.5px/1.5 var(--font);color:var(--rec-muted)}
+#recitationSave{position:absolute;inset-inline-start:6px;top:50%;transform:translateY(-50%);color:var(--rec-line);height:32px}
+#recitationSave .icon{width:20px;height:22px}
+#recitationSave[aria-pressed="true"]{color:var(--rec-gold)}
+
+/* ───────── صفحة المصحف ───────── */
+.recitation-page-scroll{max-width:none;padding:14px max(10px,calc((100% - 880px)/2)) 18px}
+.recitation-page{
+ position:relative;
+ max-width:880px;margin-inline:auto;
+ padding:22px clamp(14px,4vw,40px) 34px;
+ min-height:calc(100% - 4px);
+ background:var(--rec-paper);
+ border:1px solid var(--rec-frame);
+ border-radius:6px;
+ box-shadow:inset 0 0 0 5px var(--rec-paper),inset 0 0 0 6px var(--rec-gold-soft),var(--rec-shadow);
+ border-inline-start:1px solid var(--rec-frame)
+}
+@media (max-width:560px){
+ .recitation-page-scroll{padding:8px 6px 12px}
+ .recitation-page{padding:16px 12px 26px;border-radius:4px;box-shadow:inset 0 0 0 4px var(--rec-paper),inset 0 0 0 5px var(--rec-gold-soft),0 8px 24px #0003}
+}
+/* لا خطوط مسطّرة خلف النص المخفي؛ القوالب الهادئة للكلمات تؤدي هذا الدور */
+.recitation-page.is-masked{background-image:none}
+
+/* ترويسة السورة */
+.recitation-page .surah-banderole{
+ position:relative;max-width:420px;margin:2px auto 14px;padding:6px 48px;
+ font:700 24px/1.7 var(--serif);color:var(--rec-ink);text-align:center;
+ border:1px solid var(--rec-frame);border-radius:4px;
+ background:
+  radial-gradient(circle at 18px 50%,var(--rec-gold-soft) 0 9px,transparent 10px),
+  radial-gradient(circle at calc(100% - 18px) 50%,var(--rec-gold-soft) 0 9px,transparent 10px),
+  linear-gradient(var(--rec-paper),var(--rec-paper));
+ box-shadow:inset 0 0 0 3px var(--rec-paper),inset 0 0 0 4px var(--rec-frame)
+}
+.recitation-page .surah-banderole:before,.recitation-page .surah-banderole:after{
+ content:'۞';position:absolute;top:50%;transform:translateY(-50%);font-size:15px;color:var(--rec-gold)
+}
+.recitation-page .surah-banderole:before{right:11px}
+.recitation-page .surah-banderole:after{left:11px}
+.recitation-page .basmala{color:var(--rec-ink);opacity:.92}
+.recitation-page.is-masked .basmala{visibility:visible;opacity:.35}
+
+/* أرقام الآيات وعلامات الأثمان */
+.recitation-page .verse-number{color:var(--rec-gold)}
+.recitation-page .verse-number bdi{color:var(--rec-ink);font-weight:600}
+.recitation-division-marker{color:var(--rec-gold)}
+
+/* الكلمات */
+.recitation-word{border-radius:.32em;-webkit-text-stroke:0}
+
+/* قالب الكلمة المخفية: يحفظ مكانها فيظهر رقم الآية وعلامة الثمن في سياقهما */
+.recitation-page .recitation-word.is-concealed{
+ background-image:linear-gradient(to bottom,transparent 38%,var(--rec-mask) 38%,var(--rec-mask) 72%,transparent 72%);background-size:calc(100% - .3em) 100%;background-position:center;background-repeat:no-repeat;
+ background-color:transparent;box-shadow:none
+}
+.recitation-page .recitation-word.is-concealed.is-cursor{
+ background-image:linear-gradient(to bottom,transparent 30%,var(--rec-cursor) 30%,var(--rec-cursor) 78%,transparent 78%);background-size:100% 100%;
+ box-shadow:0 2px 0 -0px var(--rec-gold);animation:athman-next 1.8s ease-in-out infinite
+}
+@keyframes athman-next{50%{filter:brightness(1.35)}}
+@media (prefers-reduced-motion:reduce){.recitation-page .recitation-word.is-concealed.is-cursor{animation:none}}
+.recitation-page .recitation-word.is-concealed.is-error{background-image:linear-gradient(to bottom,transparent 30%,#E5634F40 30%,#E5634F40 78%,transparent 78%);box-shadow:none}
+.recitation-page .recitation-word.is-concealed.is-uncertain{background-image:linear-gradient(to bottom,transparent 30%,#E8BD3240 30%,#E8BD3240 78%,transparent 78%)!important;background-color:transparent!important;box-shadow:none!important}
+
+/* موضع القراءة الظاهر */
+.recitation-word.is-cursor:not(.is-concealed){background:var(--rec-gold-soft);box-shadow:none}
+.recitation-word.is-marked{background:#E3C14E38;box-shadow:none}
+.recitation-word.is-heard:not(.is-concealed){color:var(--rec-heard)}
+.recitation-word.is-verified:not(.is-concealed):not(.is-error):not(.is-uncertain){color:var(--rec-heard);background:transparent}
+.recitation-word.is-error{box-shadow:inset 0 -2px 0 #E5634F99}
+
+/* ───────── شريط الأدوات السفلي ───────── */
+.recitation-dock{
+ padding-inline:max(16px,calc((100% - 880px)/2)) max(16px,calc((100% - 880px)/2));
+ background:color-mix(in srgb,var(--rec-chrome) 90%,transparent);
+ backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+ border-top:1px solid var(--rec-line);
+ box-shadow:0 -1px 0 var(--rec-gold-soft)
+}
+.recitation-tool{background:var(--rec-button);color:var(--rec-ink);border:1px solid var(--rec-line);box-shadow:none;padding:8px;transition:border-color .15s,color .15s}
+.recitation-tool:hover:not(:disabled){border-color:var(--rec-gold);color:var(--rec-gold)}
+.recitation-tool[aria-pressed="true"],.recitation-tool.is-selected{border-color:var(--rec-gold);color:var(--rec-gold);box-shadow:0 0 0 3px var(--rec-gold-soft)}
+.recitation-hint{border-color:var(--rec-line);background:transparent}
+.recitation-counters button,.recitation-timer{background:var(--rec-button);border:1px solid var(--rec-line);box-shadow:none;color:var(--rec-ink)}
+.recitation-timer-dot{background:#D9534F}
+
+/* زر الميكروفون */
+.recitation-mic{
+ color:#FFF8E6;
+ background:radial-gradient(circle at 35% 30%,#2E8B68 0,var(--rec-emerald) 55%,#0C3B2D 100%);
+ box-shadow:inset 0 0 0 2px #E6C78A66,0 0 0 4px var(--rec-gold-soft),0 10px 26px #0B3A2A55;
+ transition:transform .15s,box-shadow .2s
+}
+.recitation-mic:hover:not(:disabled){transform:scale(1.03)}
+.recitation-mic:active:not(:disabled){transform:scale(.97)}
+.recitation-mic .icon{width:36px;height:36px;stroke-width:1.9}
+.is-listening .recitation-mic{
+ background:radial-gradient(circle at 35% 30%,#D9B86E 0,#B48A3E 55%,#7E5C22 100%);
+ box-shadow:inset 0 0 0 2px #FFF2CF80,0 0 0 4px #C9A35E40,0 10px 26px #7E5C2255;
+ animation:athman-listen 2s ease-out infinite
+}
+@keyframes athman-listen{0%{box-shadow:inset 0 0 0 2px #FFF2CF80,0 0 0 0 #C9A35E70,0 10px 26px #7E5C2255}100%{box-shadow:inset 0 0 0 2px #FFF2CF80,0 0 0 18px #C9A35E00,0 10px 26px #7E5C2255}}
+@media (prefers-reduced-motion:reduce){.is-listening .recitation-mic{animation:none}}
+.recitation-audio-status{background:var(--rec-paper);border-color:var(--rec-line);color:var(--rec-muted)}
+
+/* النوافذ المنبثقة */
+.recitation-popover{background:var(--rec-paper);border-color:var(--rec-line);border-radius:14px;box-shadow:var(--rec-shadow)}
+.recitation-reader .recitation-popover{inset-inline:max(12px,calc((100% - 880px)/2))}
+.recitation-reader .recitation-menu{left:max(12px,calc((100% - 880px)/2));right:auto;width:min(300px,calc(100% - 24px))}
+.recitation-settings-heading strong,.recitation-settings-heading label{font:700 16px/1.6 var(--serif);color:var(--rec-ink)}
+.recitation-popover .icon-button{background:var(--rec-button);border:1px solid var(--rec-line)}
+.recitation-secondary{border-radius:999px!important}
+.recitation-notice{border-radius:999px}
+
+/* ───────── الصفحة الرئيسية: لمسات مصحفية ───────── */
+.hero,.home-hero{position:relative;overflow:hidden}
+.footer-brand span,.brand-symbol{color:var(--gold)}
