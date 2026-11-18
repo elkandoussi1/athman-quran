@@ -54,8 +54,8 @@ function request(url,mode='same-origin',method='GET'){
  const text=await (await request(base+'assets/quran.json')).json();assert.equal(text.length,6214);
  assert((await (await request(base+'offline-route','navigate')).text()).includes('أثمان'));
  assert.equal(await (await request(base+'health')).text(),'network response');
- for(const name of ['recitation.js','recitation-ui.js','recitation-audio.js','recitation-matcher.js','recitation-diagnostics.js','recitation-capture.js','recitation-remote.js','app.js']){const url=`assets/${name}?v=${({'app.js':32,'recitation.js':33,'recitation-ui.js':33})[name]||31}`;assert(html.includes(url));assert.equal(await (await request(base+url)).text(),fs.readFileSync('dist/assets/'+name,'utf8'),'Versioned startup scripts must remain available offline');}
+ for(const name of ['recitation.js','recitation-ui.js','recitation-audio.js','recitation-matcher.js','recitation-diagnostics.js','recitation-capture.js','recitation-remote.js','app.js']){const url=`assets/${name}?v=${({'app.js':32,'recitation.js':34,'recitation-ui.js':34})[name]||31}`;assert(html.includes(url));assert.equal(await (await request(base+url)).text(),fs.readFileSync('dist/assets/'+name,'utf8'),'Versioned startup scripts must remain available offline');}
  assert.equal(await (await request(base+'assets/index-cards.css?v=32')).text(),fs.readFileSync('dist/assets/index-cards.css','utf8'));
- assert(html.includes('assets/mushaf.css?v=33'));assert.equal(await (await request(base+'assets/mushaf.css?v=33')).text(),fs.readFileSync('dist/assets/mushaf.css','utf8'),'Mushaf theme must be available offline');
+ for(const name of ['mushaf.css','athman-sounds.js','recitation-settings.js']){const url=`assets/${name}?v=34`;assert(html.includes(url),url);assert.equal(await (await request(base+url)).text(),fs.readFileSync('dist/assets/'+name,'utf8'),'v34 files must be available offline')}
  console.log('PASS: installable manifest and PNG sizes; project-relative assets; complete offline Quran; navigation fallback; cache isolation from other GitHub Pages projects.');
 })().catch(error=>{console.error(error);process.exitCode=1});
