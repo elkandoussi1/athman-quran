@@ -54,7 +54,11 @@
   </section>`;
  }
 
- function organize(panel,{sounds=root.ATHMAN_SOUNDS,soundPrefs=sounds?.load()}={}){
+ function tajweedSection(t){
+  const rows=Object.entries(t.rules).map(([k,r])=>`<li><span class="tj-swatch tj-${k}" aria-hidden="true"></span><b>${esc(r.label)}</b><small>${esc(r.hint)}</small></li>`).join('');
+  return `<section class="settings-group" aria-labelledby="settingsTajweedTitle"><h3 id="settingsTajweedTitle">ألوان التجويد</h3><label class="settings-switch"><input type="checkbox" id="recitationTajweed"${t.enabled?' checked':''}><span class="settings-switch-track" aria-hidden="true"></span><span class="settings-switch-copy"><b>تلوين أحكام التجويد (رواية ورش)</b><small>يُستخرج الحكم من ضبط المصحف، ولا يتغير النص.</small></span></label><ul class="tj-legend">${rows}</ul></section>`;
+ }
+ function organize(panel,{sounds=root.ATHMAN_SOUNDS,soundPrefs=sounds?.load(),tajweed=null}={}){
   if(!panel||panel.dataset.organized)return;panel.dataset.organized='1';
   panel.classList.add('settings-tabbed');
   const heading=panel.querySelector('.recitation-settings-heading');
@@ -82,6 +86,7 @@
    const section=document.createElement('div');section.className='settings-panel';section.id='settingsPanel-'+tab.id;section.setAttribute('role','tabpanel');section.setAttribute('aria-labelledby',button.id);section.tabIndex=-1;
    panels[tab.id]=section;body.append(section);
   }
+  if(tajweed){const wrap=document.createElement('div');wrap.innerHTML=tajweedSection(tajweed);panels.display.append(...wrap.children)}
   if(sounds&&soundPrefs){const wrap=document.createElement('div');wrap.innerHTML=soundSection(sounds,soundPrefs);panels.alerts.append(...wrap.children);oldSound?.remove()}
   const moved=new Set();
   for(const [tab,list] of Object.entries(groups))for(const el of list){if(!take(el)||moved.has(el))continue;moved.add(el);panels[tab].append(el)}
