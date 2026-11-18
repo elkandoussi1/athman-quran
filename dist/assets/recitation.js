@@ -39,8 +39,11 @@
   for(const form of forms){
    let word=normalize(form);
    // Explicit Quranic spellings, without changing the displayed source text.
-   word=word.replace(/صلوه$/,'صلاه').replace(/زكوه$/,'زكاه').replace(/حيوه$/,'حياه');
+   // Add the conventional alif spelling as an alias only; never replace the
+   // literal form (e.g. صَلُّوهُ «صلوه» in Al-Haqqa 69:31 is not «الصلاة»).
+   const alias=word.replace(/صلوه$/,'صلاه').replace(/زكوه$/,'زكاه').replace(/حيوه$/,'حياه');
    if(word)result.add(word);
+   if(alias!==word&&/وٰ/u.test(raw))result.add(alias);
    // The zero-marked alif after final waw is silent in this source rasm,
    // including singular تَتْلُواْ. Do not strip a pronounced dual alif.
    if(/و[\p{M}ـ]*ا[ْ۟۠][\p{M}ـ]*$/u.test(raw)&&word.endsWith('وا'))result.add(word.slice(0,-1));
