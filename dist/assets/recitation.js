@@ -366,7 +366,9 @@
    }
    if(i<skip)put(i+1,j,{cost:state.cost+1,matched:state.matched,ops:[...state.ops,{type:'error',pos:pos+i,kind:'omission',severity:'error'}]});
    // An extra ASR token has no corresponding source word to paint as wrong.
-   if(j<extra)put(i,j+1,{cost:state.cost+1,matched:state.matched,ops:state.ops});
+   // It is kept as an 'extra' marker (stripped before painting) so a final can
+   // recognise a mutashabih confusion: skipped words plus words said instead.
+   if(j<extra)put(i,j+1,{cost:state.cost+1,matched:state.matched,ops:[...state.ops,{type:'extra',heard:heard[at+j],pos:pos+i}]});
   }
   return table[skip][extra].ops;
  }
@@ -418,7 +420,7 @@
   return found[0];
  }
  function align(corpus,start,heard,{end=corpus.words.length,strict=false,speech=false,scopeStart=0,wasRead=()=>false,replay=null}={}){
-  const words=corpus.words,operations=[],repeated=[],localReads=new Set();let pos=start,at=0,pending=[],error=null,errorSeverity=null,autoIntro=false,fragment=false,nextReplay=replay,repeatAmbiguous=false;
+  const words=corpus.words,operations=[],repeated=[],localReads=new Set(),extras=[];let pos=start,at=0,pending=[],error=null,errorSeverity=null,autoIntro=false,fragment=false,nextReplay=replay,repeatAmbiguous=false;
   while(at<heard.length&&pos<end){
    const word=words[pos],step=consume(words,pos,heard,at);
    if(speech){
@@ -450,10 +452,10 @@
    if(!next&&speech&&!strict){const recovered=sequenceRecovery(words,pos,heard,at,end);if(recovered){operations.push(...recovered.operations);for(const op of recovered.operations)if(op.type==='read')localReads.add(op.pos);pos=recovered.pos;at+=recovered.take;nextReplay=null;repeated.length=0;continue}}
    if(!next){error=pos;errorSeverity=matchSeverity(word,heard[at]);pending=tail.slice(-24);break}
    // Resume only at an exact later anchor; skipped words remain explicit errors.
-   const bridge=bridgeOperations(words,pos,heard,at,next.skip,next.extra);operations.push(...bridge);for(const op of bridge)if(op.type==='read')localReads.add(op.pos);
+   const bridge=bridgeOperations(words,pos,heard,at,next.skip,next.extra);for(const op of bridge){if(op.type==='extra'){extras.push(op);continue}operations.push(op);if(op.type==='read')localReads.add(op.pos)}
    pos+=next.skip;at+=next.extra;
   }
-  return {pos,operations,error,errorSeverity,errorHeard:error===null?null:heard[at],pending,autoIntro,fragment,at,replay:nextReplay,repeatAmbiguous,
+  return {pos,operations,extras,error,errorSeverity,errorHeard:error===null?null:heard[at],pending,autoIntro,fragment,at,replay:nextReplay,repeatAmbiguous,
    repetition:repeated.length?{positions:[...new Set(repeated)],focusPos:repeated.at(-1)}:null};
  }
  class Follower{
@@ -561,7 +563,7 @@
      previewIndex:result.pos===this.corpus.words.length?this.units.length:ref.index,previewCursor:ref?.word||0,previewError:result.error!==null,...this.snapshot()};
    }
    this.live=null;this.replay=result.replay;
-   let unclear=result.repeatAmbiguous?1:0;
+   let unclear=result.repeatAmbiguous?1:0,confusion=false,distinct=false;
    if(speech){
     this.speechTail=[];this.speechTailPos=null;
     if(!this.strict&&result.error!==null&&nearbyTail(this.corpus.words,result.pos,result.pending,this.end)){
@@ -569,6 +571,25 @@
      // This joins single-word service finals without counting them as retries.
      this.speechTail=result.pending.slice();this.speechTailPos=result.pos;
      result.error=null;result.errorSeverity=null;unclear++;
+    }
+    // Mutashabihat confusion (v34): the final skipped source words AND supplied
+    // other words in their place (novel words, or the skipped words reordered).
+    // A dropped ASR word alone adds nothing, so plain omissions stay unverified.
+    if(!this.strict){
+     const omitted=result.operations.filter(op=>op.type==='error'&&op.kind==='omission');
+     if(omitted.length){
+      const tokens=[...(result.extras||[]).map(x=>x.heard),...(result.error!==null&&result.errorHeard?[result.errorHeard]:[])].filter(Boolean);
+      const skipped=new Set(omitted.map(op=>op.pos)),lo=Math.max(this.start,omitted[0].pos-16),hi=Math.min(this.end,omitted.at(-1).pos+16);
+      const inSkipped=t=>omitted.some(op=>this.corpus.words[op.pos].forms.includes(t));
+      const nearby=t=>{for(let p=lo;p<hi;p++)if(!skipped.has(p)&&this.corpus.words[p].forms.includes(t))return true;return false};
+      const novel=tokens.filter(t=>t.length>=3&&!inSkipped(t)&&!nearby(t)),reordered=tokens.filter(inSkipped);
+      // One skipped word beside one odd token is typical service noise; a
+      // swapped phrase needs two skipped words or two words said instead.
+      if((omitted.length>=2||novel.length>=2)&&(novel.length||reordered.length&&tokens.length>=2)){
+       confusion=true;const said=novel[0]||tokens.find(t=>!inSkipped(t))||tokens[0];
+       result.operations=result.operations.map(op=>op.type==='error'&&op.kind==='omission'?{...op,kind:'substitution',heard:said,confusion:true}:op);
+      }
+     }
     }
     const numeric=typeof confidence==='number'&&Number.isFinite(confidence)&&confidence>0?confidence:null,observed=new Map();
     const assess=(pos,token,kind)=>{
@@ -585,12 +606,16 @@
     };
     result.operations=result.operations.map(op=>{
      if(op.type!=='error')return op;
-     const severity=assess(op.pos,op.heard,op.kind);if(severity)return {...op,severity};
+     let severity=assess(op.pos,op.heard,op.kind);
+     // Whole words swapped at high service confidence are a clear mistake.
+     if(severity&&op.confusion&&numeric!==null&&numeric>=.75)severity='error';
+     if(severity&&(op.confusion||matchSeverity(this.corpus.words[op.pos],op.heard)==='error'))distinct=true;
+     if(severity)return {...op,severity};
      unclear++;return {type:'unheard',pos:op.pos};
     });
     if(result.error!==null){
      const severity=assess(result.error,result.errorHeard,'substitution');
-     if(severity)result.errorSeverity=severity;
+     if(severity){result.errorSeverity=severity;if(matchSeverity(this.corpus.words[result.error],result.errorHeard)==='error')distinct=true}
      else{unclear++;result.error=null;result.errorSeverity=null}
     }
    }
@@ -626,7 +651,7 @@
    this.changed=[...changed];
    const events=[...new Set(result.operations.filter(op=>op.type!=='unheard').map(op=>op.pos))].map(pos=>({type:newErrors.has(pos)?newErrors.get(pos)==='partial'?'uncertain':'error':'read',...this.corpus.reference(pos)}));
    if(result.error!==null)events.push({type:result.errorSeverity==='error'?'error':'uncertain',...this.corpus.reference(result.error)});
-   return {type:result.error!==null?'mismatch':this.complete?'complete':result.repetition&&!events.length?'repeated':newErrors.size?'continued':unclear&&!events.length?'unclear':finished.length?'matched':'progress',events,location,finished,unclear,continued:newErrors.size>0,definiteErrors:events.some(e=>e.type==='error'),autoHint,repetition:result.repetition,...this.snapshot()};
+   return {type:result.error!==null?'mismatch':this.complete?'complete':result.repetition&&!events.length?'repeated':newErrors.size?'continued':unclear&&!events.length?'unclear':finished.length?'matched':'progress',events,location,finished,unclear,continued:newErrors.size>0,definiteErrors:events.some(e=>e.type==='error'),confusion,mistake:confusion||distinct||events.some(e=>e.type==='error'),autoHint,repetition:result.repetition,...this.snapshot()};
   }
   hint(){if(!this.complete){const hints=this.hints.get(this.index)||new Set();let i=this.errorIndex??this.cursor;while(i<this.units[this.index].words.length&&hints.has(i))i++;if(i<this.units[this.index].words.length)hints.add(i);this.hints.set(this.index,hints)}return this.snapshot()}
   peek(){if(!this.complete)this.peeked.has(this.index)?this.peeked.delete(this.index):this.peeked.add(this.index);return this.snapshot()}

@@ -16,6 +16,11 @@
   let swipe=null,suppressClickUntil=0,clockTimer=null,listeningSince=null,elapsedMs=0,liveWordTypes=new Map(),liveFocus=null,liveHeading=null;
   let responseInfo={received:null,processing:0,kind:'',transcript:''},repeatVerses=new Set(),repeatCursor=null,audioCue=0;
   let audioState={phase:'idle',reason:'',audio:'unconfirmed'};
+  // v34: configurable synthesized cues, mistake alerts and vibration.
+  const sounds=root.ATHMAN_SOUNDS||null,soundPrefs=sounds?sounds.load():null,player=sounds?new sounds.Player(soundPrefs):null;
+  let completeCued=false,lastMistakeKey='',lastMistakeAt=0;
+  const saveSoundPrefs=()=>{if(sounds)sounds.save(soundPrefs)};
+  function cue(kind,{vibrate=true}={}){if(!player||!sound)return false;const played=player.play(kind);if(vibrate&&played)player.vibrate(kind);return played}
   let speechInput=null;
   let speechFrame=null,pendingPaint=null,markingState=null;const markingDirty=new Set();
   let asrToken='',probe=null,remotePending=false,lastLevelPaint=0,lastChoiceKey='';
@@ -40,6 +45,7 @@
    try{const Context=root.AudioContext||root.webkitAudioContext;if(!Context)return null;if(!audio)audio=new Context({latencyHint:'interactive'});return audio}catch{return null}
   }
   function playCue(kind){
+   if(player){cue(kind==='error'?'mistake':kind);return}
    const ctx=audioReady(),ticket=++audioCue;if(!ctx)return;
    const play=()=>{
     if(audio!==ctx||!sound||ticket!==audioCue||ctx.state!=='running')return;
@@ -55,6 +61,14 @@
    if(ctx.state==='suspended')ctx.resume().then(play).catch(()=>{});else play();
   }
   const beep=()=>playCue('error');
+  function alertMistakes(commits){
+   const level=soundPrefs?.mistake||'confirmed',hits=commits.filter(c=>sounds?sounds.shouldAlert(c,level):c.definiteErrors);
+   if(!hits.length)return;
+   // One alert per distinct mistake position; a re-sent final is not a new mistake.
+   const key=hits.flatMap(c=>(c.events||[]).filter(e=>e.type!=='read').map(e=>`${e.sura}:${e.aya}:${e.word}`)).join('|')||String(session?.pos);
+   const t=now();if(key===lastMistakeKey&&t-lastMistakeAt<8000)return;lastMistakeKey=key;lastMistakeAt=t;
+   beep();
+  }
   function SelectedRecognition(){return prefs.engine==='quran'?new root.ATHMAN_REMOTE.Recognition({endpoint:prefs.endpoint,token:asrToken,silenceMs:prefs.silenceMs,threshold:prefs.threshold,onLevel:paintLevel,onPending:value=>{remotePending=value;paintConnection()}}):new Recognition()}
   function canListen(){return prefs.engine==='quran'?!!root.ATHMAN_REMOTE&&!!root.navigator.mediaDevices?.getUserMedia&&!!(root.AudioContext||root.webkitAudioContext):!!Recognition}
   const screenAwake=root.ATHMAN_AUDIO?new root.ATHMAN_AUDIO.ScreenAwake({request:root.navigator?.wakeLock?type=>root.navigator.wakeLock.request(type):null,onChange:()=>paintResponseInfo()}):null;
@@ -63,7 +77,7 @@
    onStart(){if(study&&!study.active)journalId=study.begin({mode:prefs.mode,scope:prefs.mode==='practice'?'passage':'all'});clearTimeout(noticeTimer);$('#recitationNotice').hidden=true;startClock();message(session.locating?(prefs.mode==='practice'?'أستمع لآيات المقطع المحدد؛ الاستعاذة والبسملة لا تحددان البداية.':'أنتظر كلمات التلاوة لتحديد موضعك. اقرأ بعد الاستعاذة والبسملة.'):'أستأنف من موضع قراءتك المحفوظ.')},
    onResult:receiveResult,
    onBoundary(){flushSpeechPaint();pauseClock();started=false;session?.endUtterance();speechInput=null;if(active&&page&&(liveIndices.size||session?.provisional.size||session?.provisionalUnverified.size))paintPage();paintTransport()},
-   onState(state){audioState=state;started=state.started;syncAwake();paintConnection();paintTransport();if(state.reason==='locale')notice('خدمة المتصفح لا تدعم العربية (المغرب)؛ جارٍ التجربة بالعربية. يبقى المصحف والمطابقة برواية ورش.')},
+   onState(state){if(wantsAudio&&['offline','error'].includes(state.phase)&&state.phase!==audioState.phase)cue('connection');audioState=state;started=state.started;syncAwake();paintConnection();paintTransport();if(state.reason==='locale')notice('خدمة المتصفح لا تدعم العربية (المغرب)؛ جارٍ التجربة بالعربية. يبقى المصحف والمطابقة برواية ورش.')},
    onFatal(code){fatal(audioErrorText(code),code)}
   }):null;
   function abortRecognition(){
@@ -469,15 +483,16 @@
    if(batch.commits.length){
      const location=batch.commits.find(r=>r.location)?.location,result=batch.commits.at(-1);
      if(!batch.commits.every(r=>r.type==='repeated'))render(false,!!location&&!locationResolved);if(location)locationResolved=true;
-     if(batch.commits.some(r=>r.definiteErrors))beep();
+     alertMistakes(batch.commits);
      if(result.type==='repeated')message('أتابع إعادة الآية بالأخضر؛ تقدّمك محفوظ.');
      else if(result.type==='locating')message(result.invocation?'أنتظر كلمات الآية بعد الاستعاذة أو البسملة لتحديد موضعك.':result.ambiguous?'هذه الكلمات تتكرر في أكثر من موضع. واصل القراءة لتحديد الآية.':'جارٍ تحديد الموضع. اقرأ كلمات متتابعة من الآية.');
      else if(result.autoHint)message('أُظهرت الكلمة بعد 3 محاولات واضحة. يمكنك تصحيحها أو مواصلة القراءة.');
+     else if(batch.commits.some(r=>r.confusion))message('يبدو أنك انتقلت إلى آية متشابهة؛ ظُلّلت الكلمات التي لم تُقرأ في موضعها. ارجع إليها أو واصل القراءة.');
      else if(result.definiteErrors)message('اختلاف نصي تكرر في نتائج واضحة؛ ظُلّلت الكلمة بالأحمر. يمكنك التحقق منها أو مواصلة القراءة.');
      else if(result.type==='unclear'||result.unclear)message('لم تتضح بعض الكلمات للخدمة؛ لا تُحسب أخطاء مؤكدة. واصل القراءة لأتابع موضعك.');
      else if(result.type==='mismatch'||result.continued)message('الأصفر موضع التقاط غير مؤكّد، وليس حكمًا بخطئك. يمكنك مواصلة القراءة أو إعادة الكلمة.');
      else message(location?'تم تحديد موضع التلاوة. تابع القراءة.':'أتابعك. تظهر الكلمات المطابقة مع تقدّمك في التلاوة.');
-     if(result.complete){paintResponseInfo();return}
+     if(result.complete){if(!completeCued){completeCued=true;cue('complete')}paintResponseInfo();return}
     }
     if(batch.preview&&!session.complete){
      paintInterim(batch.preview);
@@ -487,7 +502,7 @@
     syncMarking();paintResponseInfo();
   }
   function enable(conceal=true){
-   if(active||!units.length||destroyed)return;active=true;hideText=conceal||prefs.mode==='practice';sound=true;lastIndex=-1;showNumbers=true;marking=false;
+   if(active||!units.length||destroyed)return;active=true;hideText=conceal||prefs.mode==='practice';sound=soundPrefs?soundPrefs.enabled:true;completeCued=false;lastIndex=-1;showNumbers=true;marking=false;
    session=createSession();
    host.innerHTML=`<section class="recitation-panel" aria-label="صفحة التسميع">
     <header class="recitation-header" dir="ltr">
@@ -514,6 +529,7 @@
    source.hidden=true;source.setAttribute('aria-hidden','true');toggle.setAttribute('aria-pressed','true');toggle.setAttribute('aria-label','إنهاء التسميع والعودة إلى القراءة');
    reader.setAttribute('aria-labelledby','recitationSurah');
    settingsButton=$('#recitationSettings');
+   root.ATHMAN_SETTINGS?.organize($('#recitationSettingsPanel'),{sounds,soundPrefs});
    $('#recitationKeepAwake').checked=prefs.keepAwake;$('#recitationLocale').value=prefs.locale;$('#recitationMode').value=prefs.mode;$('#recitationStrict').checked=prefs.strict;$('#recitationReveal').value=prefs.reveal;$('#recitationHistory').checked=prefs.history;
    const save=reader.querySelector('.reader-tools .save-button');
    if(save){$('#recitationSave').setAttribute('aria-pressed',save.getAttribute('aria-pressed'));$('#recitationSave').setAttribute('aria-label',save.getAttribute('aria-label'))}
@@ -529,6 +545,7 @@
    page=null;pageWords=[];pageVerses=[];
    toggle.setAttribute('aria-pressed','false');toggle.setAttribute('aria-label','تسميع وإخفاء الآيات');toggle.innerHTML=icon('mic')+'تسميع';
    if(audio){audio.close().catch(()=>{});audio=null}
+   player?.close();
   }
   function startAudio(){
    if(!active||!canListen()||wantsAudio)return;
@@ -541,7 +558,7 @@
     if(prefs.start==='page'&&!session.locating){const ref=corpus.reference(session.pos);session.seek(ref.sura,ref.aya,ref.word)}else session.beginSearch();
    }manualStart=false;elapsedMs=0;responseInfo={received:null,processing:0,kind:'',transcript:''};
    if($('#recitationAutoHide').checked)hideText=true;render(true);
-   wantsAudio=true;playCue('start');notice((session.locked?'أستأنف من موضع المراجعة الثابت.':prefs.mode==='practice'?'اقرأ آيات من المقطع المفتوح لتحديد البداية.':'اقرأ من أي موضع لتحديد بداية المراجعة.')+' جارٍ فتح الميكروفون؛ قد تعالج خدمة متصفحك الصوت عبر الإنترنت.');beginCycle();
+   wantsAudio=true;if(!session.complete)completeCued=false;playCue('start');notice((session.locked?'أستأنف من موضع المراجعة الثابت.':prefs.mode==='practice'?'اقرأ آيات من المقطع المفتوح لتحديد البداية.':'اقرأ من أي موضع لتحديد بداية المراجعة.')+' جارٍ فتح الميكروفون؛ قد تعالج خدمة متصفحك الصوت عبر الإنترنت.');beginCycle();
   }
   function handleClick(event){
    if(!active)return;
@@ -551,6 +568,10 @@
    const result=event.target.closest('[data-recitation-result]');
    if(result){setPopover('Search',false);goToReference(corpus.reference(Number(result.dataset.recitationResult)));return}
    const choice=event.target.closest('[data-recitation-choice]');if(choice){const resume=wantsAudio,ref=corpus.reference(Number(choice.dataset.recitationChoice));paintChoices([]);goToReference(ref,{reveal:false});if(resume)startAudio();return}
+   const previewButton=event.target.closest('[data-sound-preview]');
+   if(previewButton&&player){const kind=previewButton.dataset.soundPreview;player.play(kind,{force:true});if(soundPrefs.vibrate)try{root.navigator?.vibrate?.(sounds.VIBRATION[kind]||[30])}catch{}return}
+   const tapped=event.target.closest('.recitation-tool,.recitation-header-button,.recitation-counters button,.settings-tab');
+   if(tapped&&!tapped.disabled&&sound)player?.play('tap');
    const id=event.target.closest('button')?.id;
    if(id==='recitationListen'){
     if(wantsAudio){stop('الاستماع متوقف. يمكنك استئنافه من الموضع نفسه.',{audible:true});return}
@@ -577,7 +598,7 @@
    else if(id==='recitationMenuClose'){setPopover('Menu',false);$('#recitationMenu').focus()}
    else if(id==='recitationSearch'){setPopover('Search',$('#recitationSearchPanel').hidden)}
    else if(id==='recitationSearchClose'){setPopover('Search',false);$('#recitationSearch').focus()}
-   else if(['recitationSettings','recitationHelp','recitationSummary','recitationAudioStatus'].includes(id)){toggleSettings()}
+   else if(['recitationSettings','recitationHelp','recitationSummary','recitationAudioStatus'].includes(id)){toggleSettings();if(!$('#recitationSettingsPanel').hidden&&id!=='recitationSettings')root.ATHMAN_SETTINGS?.show($('#recitationSettingsPanel'),id==='recitationAudioStatus'?'service':'recite',{persist:false})}
    else if(id==='recitationSettingsClose'){setSettings(false)}
    else if(id==='recitationBook'){setPopover('Menu',true)}
    else if(id==='recitationExit'){leave();toggle.focus()}
@@ -602,13 +623,17 @@
    if(['recitationMode','recitationQuickMode','recitationStrict','recitationReveal','recitationHistory'].includes(event.target.id)){stop();prefs.mode=event.target.id==='recitationQuickMode'?event.target.value:$('#recitationMode').value;$('#recitationMode').value=prefs.mode;prefs.strict=$('#recitationStrict').checked;prefs.reveal=$('#recitationReveal').value;prefs.history=$('#recitationHistory').checked;if(prefs.mode==='read')hideText=false;if(prefs.mode==='practice')hideText=true;applyScope();savePrefs();paintChoices([]);paintScope();render(true)}
    if(event.target.id==='recitationTheme'){setPageTheme(event.target.value)}
    if(event.target.id==='recitationLocale'){stop('تغيّرت لغة خدمة الصوت. اضغط الميكروفون للاستئناف.');prefs.locale=event.target.value;savePrefs()}
-   if(event.target.id==='recitationSound'){sound=event.target.checked;if(sound&&wantsAudio)audioReady()}
+   if(event.target.id==='recitationSound'){sound=event.target.checked;if(soundPrefs){soundPrefs.enabled=sound;saveSoundPrefs();if(sound)player.warm()}else if(sound&&wantsAudio)audioReady()}
+   const soundKeys={recitationMicCues:'micCues',recitationVibrate:'vibrate',recitationCompleteCue:'complete',recitationConnectionCue:'connection',recitationTapCue:'taps'};
+   if(soundPrefs&&event.target.id in soundKeys){soundPrefs[soundKeys[event.target.id]]=event.target.checked;saveSoundPrefs();if(event.target.id==='recitationVibrate'&&event.target.checked)player.vibrate('tap')}
+   if(soundPrefs&&event.target.id==='recitationMistakeLevel'){soundPrefs.mistake=event.target.value in sounds.SENSITIVITY?event.target.value:'balanced';saveSoundPrefs()}
+   if(soundPrefs&&event.target.id==='recitationMistakeSound'){soundPrefs.mistakeSound=event.target.value in sounds.MISTAKE_SOUNDS?event.target.value:'knock';saveSoundPrefs();player.play('mistake',{force:true})}
    if(event.target.id==='recitationShowNumbers'){showNumbers=event.target.checked;render()}
    if(event.target.id==='recitationKeepAwake'){prefs.keepAwake=event.target.checked;savePrefs();syncAwake()}
    if(['recitationEngine','recitationEndpoint','recitationSilence','recitationSensitivity'].includes(event.target.id)){stop();prefs.engine=$('#recitationEngine').value==='quran'?'quran':'browser';try{prefs.endpoint=$('#recitationEndpoint').value.trim()?root.ATHMAN_REMOTE.endpointURL($('#recitationEndpoint').value.trim()):''}catch{notice('استخدم رابط HTTPS دون اسم مستخدم أو كلمة مرور أو معاملات سرية.');return}prefs.silenceMs=Number($('#recitationSilence').value);prefs.threshold=Number($('#recitationSensitivity').value);$('#recitationRemoteConsent').checked=false;savePrefs();paintEngine()}
    if(event.target.id==='recitationDetailedLog'){diagnosticJournal?.setEnabled(event.target.checked);$('#recitationDetailedCount').textContent=event.target.checked?'التجميع مؤقت حتى إغلاق القارئ؛ لا تُحفظ التسجيلات.':'التجميع متوقف؛ مُسحت الكلمات المجمعة.';if(!event.target.checked){$('#recitationDiagnosticReport').value='';$('#recitationDiagnosticReport').hidden=true}}
   }
-  function handleInput(event){if(event.target.id==='recitationSearchInput')searchPassage();if(event.target.id==='recitationAsrToken')asrToken=event.target.value.trim()}
+  function handleInput(event){if(event.target.id==='recitationVolume'&&soundPrefs){const v=Math.min(100,Math.max(0,Number(event.target.value)||0));soundPrefs.volume=v/100;event.target.setAttribute('aria-valuetext',v+'%');if($('#recitationVolumeValue'))$('#recitationVolumeValue').textContent=v+'%';saveSoundPrefs()}if(event.target.id==='recitationSearchInput')searchPassage();if(event.target.id==='recitationAsrToken')asrToken=event.target.value.trim()}
   function handleKey(event){
    if(!active)return;
    if(['ArrowRight','ArrowLeft'].includes(event.key)&&event.target.closest('#recitationPageScroll')&&canTurn()){event.preventDefault();turnPassage(event.key==='ArrowRight'?1:-1);return}
