@@ -7,7 +7,7 @@ const assert=require('node:assert/strict'),http=require('node:http'),fs=require(
 const {chromium}=require('playwright');
 const root=path.join(__dirname,'../dist'),shots=process.env.ATHMAN_SHOTS||'';
 const server=http.createServer((req,res)=>{const p=decodeURIComponent(new URL(req.url,'http://l').pathname),f=path.join(root,p==='/'?'index.html':p);try{const d=fs.readFileSync(f);res.writeHead(200,{'Content-Type':({'.js':'text/javascript','.css':'text/css','.html':'text/html','.json':'application/json','.ttf':'font/ttf'})[path.extname(f)]||'application/octet-stream'});res.end(d)}catch{res.writeHead(404);res.end()}});
-const inject=()=>{
+const inject=()=>{try{localStorage.setItem('athman-riwaya-chosen','1')}catch{}
  window.__recognitions=[];window.__cues=[];window.__vibes=[];
  class R{constructor(){window.__recognitions.push(this);this.results=[]}start(){this.onstart?.();this.onaudiostart?.()}stop(){this.onend?.()}abort(){}
   send(t,f=false,i=0){this.results[i]=Object.assign([{transcript:t,confidence:.92}],{isFinal:f});this.results.length=i+1;this.onresult?.({results:this.results,resultIndex:i})}}
@@ -36,7 +36,7 @@ const inject=()=>{
   }
   // Preferences: choose a mistake sound, preview it, and persist.
   await page.locator('[data-settings-tab="alerts"]').click();
-  await page.selectOption('#recitationMistakeLevel','balanced');await page.selectOption('#recitationMistakeSound','bell');
+  await page.locator('#recitationMistakeLevel + .settings-segment [data-segment-value="balanced"]').click();await page.selectOption('#recitationMistakeSound','bell');
   await page.locator('[data-sound-preview="mistake"]').click();
   const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('athman-sound-prefs')));
   assert.equal(saved.mistakeSound,'bell');assert.equal(saved.mistake,'balanced');

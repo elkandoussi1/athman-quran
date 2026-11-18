@@ -8,12 +8,12 @@
  class SpeechService{
   constructor({Recognition,now=()=>performance.now(),schedule=(fn,ms)=>setTimeout(fn,ms),cancel=id=>clearTimeout(id),visible=()=>true,online=()=>true,onStart=()=>{},onResult=()=>null,onBoundary=()=>{},onState=()=>{},onFatal=()=>{}}={}){
    Object.assign(this,{Recognition,now,schedule,cancel,visible,online,onStart,onResult,onBoundary,onState,onFatal});
-   this.wanted=false;this.current=null;this.retryTimer=null;this.healthTimer=null;this.phase='idle';this.reason='';this.locale='ar-MA';this.resetStats();
+   this.wanted=false;this.current=null;this.retryTimer=null;this.healthTimer=null;this.phase='idle';this.reason='';this.locale='ar-MA';this.processLocally=false;this.resetStats();
   }
   resetStats(){this.cycles=0;this.resultEvents=0;this.recoveries=0;this.manualRecoveries=0;this.failures=0;this.emptyEnds=0;this.lastResultAt=null;this.lastError='';this.fallback=false;this.requestedAt=this.now()}
   snapshot(){
    const c=this.current;
-   return {phase:this.phase,reason:this.reason,wanted:this.wanted,started:!!c?.started,audio:c?.audio||'unconfirmed',speech:!!c?.speech,locale:this.locale,fallback:this.fallback,cycles:this.cycles,resultEvents:this.resultEvents,recoveries:this.recoveries,manualRecoveries:this.manualRecoveries,lastError:this.lastError,lastResultAgeMs:this.lastResultAt===null?null:Math.max(0,Math.round(this.now()-this.lastResultAt))};
+   return {phase:this.phase,reason:this.reason,wanted:this.wanted,started:!!c?.started,audio:c?.audio||'unconfirmed',speech:!!c?.speech,locale:this.locale,processLocally:!!this.processLocally,fallback:this.fallback,cycles:this.cycles,resultEvents:this.resultEvents,recoveries:this.recoveries,manualRecoveries:this.manualRecoveries,lastError:this.lastError,lastResultAgeMs:this.lastResultAt===null?null:Math.max(0,Math.round(this.now()-this.lastResultAt))};
   }
   publish(phase,reason=''){
    const changed=phase!==this.phase||reason!==this.reason;this.phase=phase;this.reason=reason;
@@ -50,7 +50,7 @@
   reconnect(){this.recover('manual',{manual:true})}
   networkChanged(){
    if(!this.wanted)return;
-   if(!this.online()){this.clearTimers();this.detach();this.publish('offline','network')}
+   if(!this.online()&&!this.processLocally){this.clearTimers();this.detach();this.publish('offline','network')}
    else if(this.phase==='offline'&&this.visible()){this.publish('reconnecting','online');this.later(250)}
   }
   tick(c){
@@ -69,12 +69,14 @@
    if(!this.wanted)return;
    this.clearTimers();
    if(!this.visible()){this.stop();return}
-   if(!this.online()){this.publish('offline','network');return}
+   if(!this.online()&&!this.processLocally){this.publish('offline','network');return}
    this.detach();
    let rec;try{rec=new this.Recognition()}catch{this.fail('unsupported');return}
    const c={rec,created:this.now(),started:false,hadResult:false,lastResultAt:null,audio:'unconfirmed',audioEndedAt:null,speech:false};this.current=c;this.cycles++;
    const current=()=>this.wanted&&this.current===c;
    rec.lang=this.locale;rec.continuous=true;rec.interimResults=true;rec.maxAlternatives=3;
+   // v36: on-device recognition (Chrome's Web Speech processLocally) when chosen and installed.
+   if(this.processLocally&&'processLocally' in rec)try{rec.processLocally=true}catch{}
    rec.onstart=()=>{if(!current())return;c.started=true;this.publish('listening');this.onStart()};
    rec.onaudiostart=()=>{if(!current())return;c.audio='capturing';c.audioEndedAt=null;this.publish('listening','audio')};
    rec.onsoundstart=()=>{if(current())this.publish('hearing','sound')};

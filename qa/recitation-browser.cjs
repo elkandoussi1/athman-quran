@@ -6,7 +6,7 @@ const {chromium}=require('playwright');
 const {Corpus}=require('../dist/assets/recitation.js'),q=require('../dist/assets/quran.json');
 const c=new Corpus(q.map(([sura,aya,text])=>({sura,aya,text}))),at=(s,a,w=0)=>c.position(s,a,w);
 const server=http.createServer((req,res)=>{const pathname=decodeURIComponent(new URL(req.url,'http://local').pathname),file=path.join(__dirname,'../dist',pathname==='/'?'index.html':pathname);try{const data=fs.readFileSync(file),ext=path.extname(file);res.writeHead(200,{'Content-Type':({'.js':'text/javascript','.css':'text/css','.html':'text/html','.json':'application/json','.ttf':'font/ttf'})[ext]||'application/octet-stream'});res.end(data)}catch{res.writeHead(404);res.end()}});
-const inject=()=>{
+const inject=()=>{try{localStorage.setItem('athman-riwaya-chosen','1')}catch{}
  window.__recognitions=[];window.__openings=[];window.__legacyFrames=0;
  class Recognition{
   constructor(){window.__recognitions.push(this);this.results=[]}
@@ -89,7 +89,7 @@ async function run(){
   await page.evaluate(words=>{const rec=window.__recognitions.at(-1);for(let n=3;n<=words.length;n++)rec.send(words.slice(n-3,n).join(' '))},rolling);await frame(page);
   assert.equal(await page.locator('#recitationPage .recitation-word:not(.is-concealed)').count(),120,'coalesced rolling events must paint retained provisional words too');
   await page.locator('#recitationListen').click();
-  await page.locator('#recitationSettings').click();await page.selectOption('#recitationStartMode','auto');await page.locator('#recitationSettingsClose').click();await start(page);await send(page,'قل هو الله أحد الله الصمد');await frame(page);assert((await page.locator('#recitationSurah').textContent()).includes('الإخلاص'),'explicit automatic global location remains available');
+  await page.locator('#recitationSettings').click();await page.locator('#recitationStartMode + .settings-segment [data-segment-value="auto"]').click();await page.locator('#recitationSettingsClose').click();await start(page);await send(page,'قل هو الله أحد الله الصمد');await frame(page);assert((await page.locator('#recitationSurah').textContent()).includes('الإخلاص'),'explicit automatic global location remains available');
   assert.equal(await page.locator('#recitationProgress').textContent(),'0 آيات','old surah counters cannot survive an interim relocation');
   await page.locator('#recitationListen').click();
   await page.evaluate(()=>openPart('eighth',QURAN_DATA.eighths.find(e=>e.sura===2&&e.aya<=75&&e.endSura===2&&e.endAya>=75).id));

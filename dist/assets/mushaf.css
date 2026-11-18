@@ -237,3 +237,30 @@
 .tj-legend li{display:grid;grid-template-columns:18px auto 1fr;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--rec-line);font:12px/1.6 var(--font);color:var(--rec-ink)}
 .tj-legend small{color:var(--rec-muted);font-size:10.5px;text-align:start}
 .tj-swatch{width:14px;height:14px;border-radius:4px;background:currentColor}
+
+/* ───────── v36: لوحات إعدادات أوضح، والرواية، وألوان حفص ───────── */
+.recitation-reader{--tj-munfasil:#F59E6B}
+.recitation-reader[data-recitation-theme="light"]{--tj-munfasil:#C2410C}
+.tj-munfasil{color:var(--tj-munfasil)}
+.settings-select-hidden{display:none!important}
+.settings-segment{display:inline-flex;flex-wrap:wrap;gap:3px;padding:3px;border:1px solid var(--rec-line);border-radius:12px;background:var(--rec-paper);max-width:100%}
+.settings-segment button{min-height:32px;padding:4px 12px;border:0;border-radius:9px;background:transparent;color:var(--rec-muted);font:600 12px/1.3 var(--font);cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
+.settings-segment button:hover:not(:disabled){color:var(--rec-ink)}
+.settings-segment button[aria-checked="true"]{background:var(--rec-emerald);color:#FFF8E6;box-shadow:0 1px 3px #0003}
+.settings-segment button:focus-visible{outline:2px solid var(--rec-accent);outline-offset:1px}
+.settings-segment button:disabled{opacity:.5;cursor:not-allowed}
+.settings-panel>label:has(.settings-segment){flex-wrap:wrap}
+.settings-panel .recitation-scope-bar .settings-segment{flex:1 1 auto}
+.settings-riwaya-row{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:4px 0 2px}
+.settings-riwaya-name{display:flex;flex-direction:column;gap:2px}
+.settings-riwaya-name b{font:700 17px/1.5 var(--serif);color:var(--rec-ink)}
+.settings-riwaya-name small{font:11px/1.6 var(--font);color:var(--rec-muted)}
+.settings-riwaya-change{flex:0 0 auto;min-height:36px;padding:6px 14px;border:1px solid var(--rec-gold);border-radius:999px;background:transparent;color:var(--rec-gold);font:700 12px var(--font);cursor:pointer}
+.settings-riwaya-change:hover{background:var(--rec-gold-soft)}
+.tj-legend-wrap{margin-top:6px;border-top:1px solid var(--rec-line)}
+.tj-legend-wrap summary{cursor:pointer;padding:8px 0 4px;font:600 12px var(--font);color:var(--rec-gold);list-style:none}
+.tj-legend-wrap summary::-webkit-details-marker{display:none}
+.tj-legend-wrap summary:after{content:' ▾';font-size:10px}
+.tj-legend-wrap[open] summary:after{content:' ▴'}
+.settings-tab{font-size:12.5px}
+.settings-group{box-shadow:0 1px 0 #0000000a}

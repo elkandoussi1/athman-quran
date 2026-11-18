@@ -29,3 +29,6 @@
   src: url(ui-font-3.ttf) format('truetype');
 }
 @font-face{font-family:Warsh;src:url('warsh.ttf') format('truetype');font-display:swap}
+@font-face{font-family:HafsUthmani;src:url('hafs/hafs.ttf') format('truetype');font-display:swap}
+:root{--quran-font:Warsh}
+:root[data-riwaya="hafs"]{--quran-font:HafsUthmani}
