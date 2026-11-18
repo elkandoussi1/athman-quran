@@ -1,0 +1,41 @@
+/* أثمان — اختيار الرواية (الإصدار 36) */
+.riwaya-chip{display:inline-flex;align-items:center;gap:7px;min-height:34px;padding:4px 12px 4px 9px;border:1px solid var(--line);border-radius:999px;background:var(--paper);color:var(--ink);font:600 12.5px/1 var(--font);cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.riwaya-chip:hover{border-color:var(--gold);box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 18%,transparent)}
+.riwaya-chip .icon{width:13px;height:13px;transform:rotate(-90deg);opacity:.7}
+.riwaya-chip-dot{width:8px;height:8px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 22%,transparent)}
+.riwaya-chip-label:before{content:'رواية ';font-weight:400;color:var(--muted)}
+@media (max-width:560px){.riwaya-chip{min-height:32px;padding:3px 10px 3px 8px;font-size:12px}.riwaya-chip-label:before{content:''}}
+.riwaya-side{display:flex;align-items:center;gap:6px;width:100%;border:0;background:none;color:inherit;font:inherit;cursor:pointer;text-align:start;padding:0}
+.riwaya-side small{margin-inline-start:auto;color:var(--gold);font-size:11px;text-decoration:underline;text-underline-offset:3px}
+
+.riwaya-dialog{width:min(640px,calc(100% - 24px));max-height:92dvh;padding:0;border:1px solid var(--line);border-radius:22px;background:var(--bg);color:var(--ink);box-shadow:0 30px 80px #0b1f1840;overflow:auto}
+.riwaya-dialog::backdrop{background:#0f241ccc;backdrop-filter:blur(6px)}
+.riwaya-sheet{position:relative;padding:28px 26px 22px}
+.riwaya-sheet .dialog-close{position:absolute;top:14px;inset-inline-end:14px}
+.riwaya-kicker{font:600 11.5px var(--font);letter-spacing:.02em;color:var(--gold)}
+.riwaya-dialog h2{margin:4px 0 6px;font:700 28px/1.4 var(--serif)}
+.riwaya-lead{margin:0 0 18px;font:13px/1.9 var(--font);color:var(--muted)}
+.riwaya-options{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:560px){.riwaya-options{grid-template-columns:1fr}.riwaya-sheet{padding:24px 16px 18px}.riwaya-dialog h2{font-size:24px}}
+.riwaya-option{display:flex;flex-direction:column;gap:10px;padding:14px;border:1.5px solid var(--line);border-radius:16px;background:var(--paper);color:var(--ink);text-align:start;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .15s}
+.riwaya-option:hover{border-color:color-mix(in srgb,var(--gold) 60%,var(--line))}
+.riwaya-option[aria-checked="true"]{border-color:var(--gold);box-shadow:0 0 0 4px color-mix(in srgb,var(--gold) 20%,transparent)}
+.riwaya-option:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+.riwaya-option-head{display:flex;align-items:center;gap:8px}
+.riwaya-option-head b{font:700 17px/1.5 var(--serif)}
+.riwaya-current{padding:2px 8px;border-radius:999px;background:var(--green-soft);color:var(--green);font:600 10.5px var(--font)}
+.riwaya-radio{margin-inline-start:auto;width:20px;height:20px;border-radius:50%;border:2px solid var(--line);flex:0 0 auto;position:relative}
+.riwaya-option[aria-checked="true"] .riwaya-radio{border-color:var(--gold)}
+.riwaya-option[aria-checked="true"] .riwaya-radio:after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--gold)}
+.riwaya-sample{display:block;padding:10px 6px;border-radius:12px;background:var(--sand);text-align:center;font-size:24px;line-height:1.9;color:var(--ink);direction:rtl}
+.riwaya-sample--warsh{font-family:Warsh,var(--serif)}
+.riwaya-sample--hafs{font-family:HafsUthmani,var(--serif)}
+.riwaya-facts{display:flex;flex-direction:column;gap:5px;font:12px/1.7 var(--font);color:var(--muted)}
+.riwaya-facts span{position:relative;padding-inline-start:14px}
+.riwaya-facts span:before{content:'';position:absolute;inset-inline-start:0;top:.75em;width:6px;height:6px;border-radius:50%;background:color-mix(in srgb,var(--gold) 70%,transparent)}
+.riwaya-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.riwaya-confirm{flex:1 1 220px;min-height:46px;border:0;border-radius:14px;background:var(--green);color:var(--bg);font:700 14px var(--font);cursor:pointer}
+[data-theme="dark"] .riwaya-confirm{color:#10241c}
+.riwaya-later{min-height:46px;padding:0 18px;border:1px solid var(--line);border-radius:14px;background:transparent;color:var(--ink);font:600 13px var(--font);cursor:pointer}
+@media (prefers-reduced-motion:reduce){.riwaya-option,.riwaya-chip{transition:none}}
+@media (max-width:380px){.topbar #aboutButton{display:none}.riwaya-chip .icon{display:none}.riwaya-chip{padding:3px 9px;gap:5px}}

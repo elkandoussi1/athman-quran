@@ -11,7 +11,7 @@
  if(typeof module==='object'&&module.exports)module.exports=api;else root.ATHMAN_TAJWEED=api;
 })(typeof window==='object'?window:globalThis,function(){
  'use strict';
- const RULES={
+ const WARSH_RULES={
   lazim:{label:'مد لازم',hint:'6 حركات'},
   muttasil:{label:'مد متصل أو منفصل',hint:'6 حركات عند ورش'},
   badal:{label:'مد البدل واللين المهموز',hint:'2 أو 4 أو 6'},
@@ -21,6 +21,21 @@
   tafkhim:{label:'تفخيم',hint:'حروف الاستعلاء والراء المفخمة واللام المغلظة'},
   silent:{label:'لا يُلفظ',hint:'وصلًا'}
  };
+ // v36: Hafs 'an 'Asim (ash-Shatibiyya): wajib muttasil and ja'iz munfasil are
+ // 4–5; no badal/lin-mahmuz lengthening and no taghlidh of lam; ra is thick
+ // with fatha or damma.
+ const HAFS_RULES={
+  lazim:{label:'مد لازم',hint:'6 حركات'},
+  muttasil:{label:'مد واجب متصل',hint:'4 أو 5 حركات'},
+  munfasil:{label:'مد جائز منفصل',hint:'4 أو 5 حركات'},
+  arid:{label:'مد عارض للسكون',hint:'عند الوقف'},
+  ghunna:{label:'غنة وإخفاء وإدغام بغنة وإقلاب',hint:'حركتان'},
+  qalqala:{label:'قلقلة',hint:'ق ط ب ج د الساكنة'},
+  tafkhim:{label:'تفخيم',hint:'حروف الاستعلاء والراء المفخمة ولفظ الجلالة'},
+  silent:{label:'لا يُلفظ',hint:'وصلًا'}
+ };
+ const DEFAULT_RIWAYA=typeof window==='object'&&window.ATHMAN_RIWAYA?.id==='hafs'?'hafs':'warsh';
+ const RULES=DEFAULT_RIWAYA==='hafs'?HAFS_RULES:WARSH_RULES;
  const SUKUN='ْ',SHADDA='ّ',MADDAH='ٓ',DAGGER='ٰ',ZERO='۟',WASL='۬',IQLAB='ۢ',HAMZA_ABOVE='ٔ';
  const FATHA='َ',DAMMA='ُ',KASRA='ِ';
  const TAN_IZHAR=/[ًٌٍ]/u,TAN_HIDDEN=/[ٖٗٞ]/u,TANWEEN=/[ًٌٍٖٗٞ]/u;
@@ -43,13 +58,13 @@
   for(const c of out){c.marks=c.text.slice(c.base.length);c.letter=/\p{L}/u.test(c.base)&&!/[ۥۦ]/u.test(c.base)}
   return out;
  }
- const has=(c,mark)=>!!c&&c.marks.includes(mark);
+ const has=(c,mark)=>!!c&&(mark===SUKUN?/[\u0652\u06E1]/u.test(c.marks):mark===ZERO?/[\u06DF\u06E0]/u.test(c.marks):mark===IQLAB?/[\u06E2\u06ED]/u.test(c.marks):c.marks.includes(mark));
  const bare=c=>!!c&&c.letter&&!/[ً-ْٖٗٞ]/u.test(c.marks);
  const isHamza=c=>!!c&&(HAMZAS.has(c.base)||has(c,HAMZA_ABOVE));
  const vowelOf=c=>!c?null:KASRA_LIKE.test(c.marks)?'i':DAMMA_LIKE.test(c.marks)?'u':FATHA_LIKE.test(c.marks)?'a':has(c,SUKUN)?'0':null;
  function silentLetter(c,p=null){
   if(!c||!c.letter)return false;
-  if(has(c,ZERO)||ALIFS.has(c.base)&&(has(c,SUKUN)||has(c,WASL)))return true;
+  if(has(c,ZERO)||c.base==='\u0671'||ALIFS.has(c.base)&&(has(c,SUKUN)||has(c,WASL)))return true;
   // This Warsh dabt puts the circle on a waw after damma / yeh after kasra that is
   // written but not read (أُوْلَٰٓئِكَ، سَأُوْرِيكُمْ).
   return has(c,SUKUN)&&!!p&&(c.base==='و'&&vowelOf(p)==='u'||(c.base==='ي'||c.base==='ے')&&vowelOf(p)==='i');
@@ -67,7 +82,8 @@
  function startsWithHamza(word){const list=clusters(word||'').filter(c=>c.letter);const c=list[0];if(!c)return false;return isHamza(c)||ALIFS.has(c.base)&&!has(c,WASL)&&!has(c,SUKUN)&&/[َُِ]/u.test(c.marks)}
  function isMuqattaat(word){const list=clusters(word).filter(c=>c.letter);return list.length>0&&list.length<=5&&list.every(c=>!/[ًَُِ-ٍٖٗٞ]/u.test(c.marks)||has(c,MADDAH))&&list.some(c=>has(c,MADDAH))}
 
- function analyze(word,{prev='',next='',last=false}={}){
+ function analyze(word,{prev='',next='',last=false,riwaya=DEFAULT_RIWAYA}={}){
+  const hafs=riwaya==='hafs';
   const list=clusters(word),rules=new Array(list.length).fill(null);
   const letters=list.map((c,i)=>c.letter?i:-1).filter(i=>i>=0);
   const nextLetter=i=>{for(let j=i+1;j<list.length;j++)if(list[j].letter)return list[j];return null};
@@ -90,10 +106,12 @@
    // 2. Madd marked with the maddah sign.
    if(has(c,MADDAH)){
     // A maddah on a letter that is not a madd letter is a muqatta'a letter (الٓمٓ).
-    const maddBearer=['ا','ٱ','و','ي','ى','ے'].includes(c.base)||/[\u0670\u06E5\u06E6]/u.test(c.marks);
+    const hamzaAlif=c.base==='أ'||c.base==='آ';
+    const maddBearer=hamzaAlif||['ا','ٱ','و','ي','ى','ے'].includes(c.base)||/[\u0670\u06E5\u06E6]/u.test(c.marks);
     if(muqattaat||!maddBearer){set(i,'lazim');continue}
-    if(after){set(i,isHamza(after)?'muttasil':has(after,SHADDA)||has(after,SUKUN)?'lazim':'muttasil');continue}
-    set(i,next&&startsWithHamza(next)?'muttasil':last?'arid':'muttasil');continue;
+    // آ before an ordinary letter is hamza + madd: madd al-badal (2 in Hafs, Warsh 2/4/6).
+    if(after){const kind=isHamza(after)?'muttasil':has(after,SHADDA)||has(after,SUKUN)?'lazim':hamzaAlif?(hafs?null:'badal'):'muttasil';if(kind)set(i,kind);continue}
+    set(i,next&&startsWithHamza(next)?(hafs?'munfasil':'muttasil'):last?'arid':hafs?'munfasil':'muttasil');continue;
    }
    // 3. Ghunna: mushaddad noon/meem, iqlab, ikhfa, ikhfa shafawi.
    if((c.base==='ن'||c.base==='م')&&has(c,SHADDA)){set(i,'ghunna');continue}
@@ -104,17 +122,17 @@
     if(IKHFA.has(nextWordFirst.base)||GHUNNA_IDGHAM.has(nextWordFirst.base)&&has(nextWordFirst,SHADDA)){set(i,'ghunna');continue}
    }
    // 4. Warsh madd al-badal (hamza then madd letter) and lin before hamza.
-   if(isHamza(c)&&!has(c,SHADDA)){
+   if(!hafs&&isHamza(c)&&!has(c,SHADDA)){
     const j=idx(i);
     if(has(c,DAGGER))set(i,'badal');
     else if(j>=0&&maddLetter(list,j)&&!has(list[j],MADDAH)&&!(last&&j===letters.at(-1)))set(j,'badal');
    }
-   if((c.base==='و'||c.base==='ي')&&has(c,SUKUN)&&vowelOf(list[i-1])==='a'&&after&&isHamza(after)){set(i,'badal');continue}
+   if(!hafs&&(c.base==='و'||c.base==='ي')&&has(c,SUKUN)&&vowelOf(list[i-1])==='a'&&after&&isHamza(after)){set(i,'badal');continue}
    // 5. Qalqala: sakin letters, and the last letter when stopping.
    if(QALQALA.has(c.base)&&(has(c,SUKUN)||last&&i===letters.at(-1)&&!has(c,SHADDA))){set(i,'qalqala');continue}
    // 6. Tafkhim: isti'la letters, Warsh taghlidh of lam, lafz al-jalala, ra.
    if(ISTILA.has(c.base)){set(i,'tafkhim');continue}
-   if(c.base==='ل'&&has(c,FATHA)){
+   if(!hafs&&c.base==='ل'&&has(c,FATHA)){
     const p=list.slice(0,i).reverse().find(x=>x.letter);
     if(p&&['ص','ط','ظ'].includes(p.base)&&(vowelOf(p)==='a'||vowelOf(p)==='0')){set(i,'tafkhim');continue}
    }
@@ -128,11 +146,15 @@
     // Warsh: ra is thinned after a kasra (directly or across one sakin) or a sakin yeh.
     const p=list.slice(0,i).reverse().filter(x=>x.letter&&!silentLetter(x));
     const p1=p[0],p2=p[1];let thin=false;
-    if(p1){
+    if(hafs){
+     // Hafs: thick with fatha/damma; a sakin ra is thin only after an original
+     // kasra in its word (not hamzat al-wasl) and before no isti'la letter.
+     if(has(c,SUKUN)){const q=list.slice(0,i).reverse().find(x=>x.letter&&!(bare(x)&&x.base==='ل'));thin=!!q&&vowelOf(q)==='i'&&q.base!=='\u0671'&&!(after&&ISTILA.has(after.base))}
+    }else if(p1){
      if(vowelOf(p1)==='i'||(p1.base==='ي'&&(has(p1,SUKUN)||bare(p1))))thin=true;
      else if(vowelOf(p1)==='0'&&!ISTILA.has(p1.base)&&p2&&vowelOf(p2)==='i')thin=true;
     }
-    if(has(c,SUKUN)&&after&&ISTILA.has(after.base))thin=false;
+    if(!hafs&&has(c,SUKUN)&&after&&ISTILA.has(after.base))thin=false;
     if(!thin){set(i,'tafkhim');continue}
    }
   }
@@ -153,5 +175,5 @@
   for(const p of parts){if(p.rule!==rule){flush();rule=p.rule}run+=p.text}
   flush();return html;
  }
- return {version:35,RULES,clusters,analyze,markup};
+ return {version:36,RULES,WARSH_RULES,HAFS_RULES,clusters,analyze,markup};
 });

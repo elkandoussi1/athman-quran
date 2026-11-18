@@ -4,8 +4,10 @@
  const api=factory();
  if(typeof module==='object'&&module.exports)module.exports=api;
  if(root&&root.QURAN_DATA){
-  root.QURAN_DATA.halves=api.groupEighths(root.QURAN_DATA.eighths,4,'half');
-  root.QURAN_DATA.quarters=api.groupEighths(root.QURAN_DATA.eighths,2,'quarter');
+  // Warsh: 8 eighths per hizb. Hafs (v36): the base unit is the rub' (4 per hizb).
+  const per=root.QURAN_DATA.unitsPerHizb||8;
+  root.QURAN_DATA.halves=api.groupEighths(root.QURAN_DATA.eighths,per/2,'half');
+  root.QURAN_DATA.quarters=api.groupEighths(root.QURAN_DATA.eighths,per/4,'quarter');
   root.ATHMAN_DIVISIONS=api;
  }
 })(typeof window==='object'?window:null,function(){

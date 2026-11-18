@@ -50,7 +50,7 @@
 .study-file input{position:absolute;inset:0;width:100%;opacity:0;cursor:pointer}
 #studyStatus{font-size:11px;color:var(--green);min-height:20px}
 .recitation-word-menu{top:auto;bottom:105px;max-width:430px;max-height:65%;margin-inline:auto}
-#recitationWordLabel{font:30px/1.8 Warsh,var(--serif)}
+#recitationWordLabel{font:30px/1.8 var(--quran-font),var(--serif)}
 #recitationWordReference{font-size:11px;color:var(--rec-muted)}
 .recitation-word-menu>.recitation-secondary{margin:4px;min-height:40px}
 .recitation-word[data-history="1"]{background:#BDA03A2B;box-shadow:0 0 9px 3px #BDA03A20}

@@ -6,7 +6,7 @@ const assert=require('node:assert/strict'),http=require('node:http'),fs=require(
 const {chromium}=require('playwright');
 const root=path.join(__dirname,'../dist');
 const server=http.createServer((req,res)=>{const p=decodeURIComponent(new URL(req.url,'http://l').pathname),f=path.join(root,p==='/'?'index.html':p);try{const d=fs.readFileSync(f);res.writeHead(200,{'Content-Type':({'.js':'text/javascript','.css':'text/css','.html':'text/html','.json':'application/json','.ttf':'font/ttf'})[path.extname(f)]||'application/octet-stream'});res.end(d)}catch{res.writeHead(404);res.end()}});
-const inject=()=>{window.__recognitions=[];class R{constructor(){window.__recognitions.push(this);this.results=[]}start(){this.onstart?.();this.onaudiostart?.()}stop(){this.onend?.()}abort(){}}window.SpeechRecognition=R;window.webkitSpeechRecognition=undefined};
+const inject=()=>{try{localStorage.setItem('athman-riwaya-chosen','1')}catch{}window.__recognitions=[];class R{constructor(){window.__recognitions.push(this);this.results=[]}start(){this.onstart?.();this.onaudiostart?.()}stop(){this.onend?.()}abort(){}}window.SpeechRecognition=R;window.webkitSpeechRecognition=undefined};
 (async()=>{
  await new Promise(r=>server.listen(0,'127.0.0.1',r));const url='http://127.0.0.1:'+server.address().port;
  const browser=await chromium.launch({headless:true,executablePath:process.env.ATHMAN_CHROMIUM||undefined,args:['--no-sandbox']});
