@@ -478,7 +478,7 @@
   state(index){return this.states.get(index)||{read:new Set(),errors:new Map(),unverified:new Set(),ignored:new Set(),complete:false,partial:false}}
   editable(index){if(!this.states.has(index))this.states.set(index,{read:new Set(),errors:new Map(),unverified:new Set(),ignored:new Set(),complete:false,partial:false});return this.states.get(index)}
   setRange(start,end){this.start=Math.max(0,Math.min(this.corpus.words.length-1,Number.isInteger(start)?start:0));this.end=Math.max(this.start+1,Math.min(this.corpus.words.length,Number.isInteger(end)?end:this.corpus.words.length));if(this.pos<this.start||this.pos>=this.end){this.pos=this.start;this.focusPos=this.pos}this.pending=[];this.replay=null;this.speechTail=[];this.speechTailPos=null;return this}
-  seek(sura,aya,word=0){const pos=this.corpus.position(sura,aya,word);if(pos===null||pos<this.start||pos>=this.end)return false;this.pos=pos;this.focusPos=pos;this.pending=[];this.pendingFragment=false;this.speechTail=[];this.speechTailPos=null;this.manualAnchor=true;this.locating=false;this.locked=true;this.acquisition=null;this.live=null;this.replay=null;this.provisional.clear();this.provisionalUnverified.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return true}
+  seek(sura,aya,word=0){const pos=this.corpus.position(sura,aya,word);if(pos===null||pos<this.start||pos>=this.end)return false;this.softRange=null;this.pos=pos;this.focusPos=pos;this.pending=[];this.pendingFragment=false;this.speechTail=[];this.speechTailPos=null;this.manualAnchor=true;this.locating=false;this.locked=true;this.acquisition=null;this.live=null;this.replay=null;this.provisional.clear();this.provisionalUnverified.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return true}
   endUtterance(){
    if(this.live){
     // Keep interim-only continuity across a mobile service restart. These words
@@ -508,7 +508,7 @@
     hints:[...(this.hints.get(index)||[])],peeked:this.peeked.has(index),outcomes:this.outcomes.slice(),changed:this.changed.slice(),
     errorCount:pendingError+[...this.states.values()].reduce((sum,s)=>sum+s.errors.size,0)};
   }
-  beginSearch(){if(!this.canResume()&&this.states.size){this.states.clear();this.outcomes=[];this.failures.clear()}this.manualAnchor=false;if(this.complete)this.pos=this.start;this.locating=true;this.locked=false;this.acquisition=null;this.locateBuffer=[];this.pending=[];this.pendingFragment=false;this.speechTail=[];this.speechTailPos=null;this.live=null;this.replay=null;this.provisional.clear();this.provisionalUnverified.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return this.snapshot()}
+  beginSearch(){this.softRange=null;if(!this.canResume()&&this.states.size){this.states.clear();this.outcomes=[];this.failures.clear()}this.manualAnchor=false;if(this.complete)this.pos=this.start;this.locating=true;this.locked=false;this.acquisition=null;this.locateBuffer=[];this.pending=[];this.pendingFragment=false;this.speechTail=[];this.speechTailPos=null;this.live=null;this.replay=null;this.provisional.clear();this.provisionalUnverified.clear();this.observations.clear();this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;this.changed=[];return this.snapshot()}
   feed(transcript,{final=false,speech=false,confidence=null}={}){
    const incoming=heardWords(transcript);if(!incoming.length)return {type:'empty',...this.snapshot()};
    let start=this.pos,heard=incoming,location=null,overlap=false;
@@ -547,6 +547,18 @@
    }
    const alignOptions={end:this.end,strict:this.strict,speech,scopeStart:this.start,replay:this.replay,wasRead:p=>{const w=this.corpus.words[p];return !!this.states.get(w.index)?.read.has(w.word)||this.provisional.has(p)}};
    let result=align(this.corpus,start,heard,alignOptions);
+   // v35 soft page anchor: before anything has been recited, the reader may start
+   // from any ayah of the OPEN passage, not only at the page anchor. A unique
+   // phrase inside the passage moves the anchor there; nothing is credited before it.
+   if(this.softRange&&speech&&!overlap&&!location&&!result.operations.some(op=>op.type==='read')&&![...this.states.values()].some(st=>st.read.size)){
+    const found=this.corpus.locate(incoming,{start:this.softRange.start,end:this.softRange.end});
+    if(found.status==='found'&&found.pos!==start){
+     const rest=incoming.slice(found.heardStart||0).join(' ');this.softRange=null;
+     this.pos=found.pos;this.focusPos=found.pos;this.pending=[];this.pendingFragment=false;this.speechTail=[];this.speechTailPos=null;this.errorIndex=null;this.errorPos=null;this.errorSeverity=null;
+     const moved=this.feed(rest,{final,speech,confidence});moved.location=moved.location||this.corpus.reference(found.pos);moved.anchorMoved=true;return moved;
+    }
+   }
+   if(this.softRange&&result.operations.some(op=>op.type==='read')&&final)this.softRange=null;
    if(speech&&!this.strict&&!overlap&&!location&&this.speechTailPos===start&&this.speechTail.length){
     const combined=[...this.speechTail,...heard],candidate=align(this.corpus,start,combined,alignOptions);
     const reads=r=>r.operations.filter(op=>op.type==='read').length;

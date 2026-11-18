@@ -220,3 +220,20 @@
 .settings-preview:hover{border-color:var(--rec-gold);color:var(--rec-gold)}
 .settings-note{margin:6px 0 0;font:11px/1.8 var(--font);color:var(--rec-muted)}
 @media (prefers-reduced-motion:reduce){.settings-switch-track,.settings-switch-track:after{transition:none}}
+
+/* ───────── v35: ألوان التجويد لرواية ورش ───────── */
+.recitation-reader{--tj-lazim:#E2525C;--tj-muttasil:#F0743E;--tj-badal:#F2A65A;--tj-arid:#E9C46A;--tj-ghunna:#4CC38A;--tj-qalqala:#5DB7F0;--tj-tafkhim:#7F9CF5;--tj-silent:#7E8A85}
+.recitation-reader[data-recitation-theme="light"]{--tj-lazim:#A3122A;--tj-muttasil:#D9361B;--tj-badal:#D9730D;--tj-arid:#B88A00;--tj-ghunna:#118A4E;--tj-qalqala:#0E7FC0;--tj-tafkhim:#2541A8;--tj-silent:#9AA19D}
+.tj-lazim{color:var(--tj-lazim)}.tj-muttasil{color:var(--tj-muttasil)}.tj-badal{color:var(--tj-badal)}.tj-arid{color:var(--tj-arid)}
+.tj-ghunna{color:var(--tj-ghunna)}.tj-qalqala{color:var(--tj-qalqala)}.tj-tafkhim{color:var(--tj-tafkhim)}.tj-silent{color:var(--tj-silent)}
+.verse:not(.is-context-verse) .recitation-word.is-concealed .tj{color:transparent!important}
+.recitation-page .verse.is-context-verse .recitation-word.is-concealed{color:var(--rec-ink)!important;background-image:none!important;-webkit-user-select:auto;user-select:auto}
+.recitation-word.is-error .tj,.recitation-word.is-uncertain .tj,.recitation-word.is-unverified .tj,.recitation-word.is-hint .tj,.recitation-page .verse.is-repeated .tj{color:inherit}
+/* مع التلوين: الكلمة المقروءة بلون الحبر وألوان أحكامها، وتبقى إشارة خفيفة للتقدم */
+.tajweed-on .recitation-word.is-heard:not(.is-concealed),
+.tajweed-on .recitation-word.is-verified:not(.is-concealed):not(.is-error):not(.is-uncertain){color:var(--rec-ink);background:color-mix(in srgb,var(--tj-ghunna) 9%,transparent)}
+.recitation-word.is-context{color:var(--rec-ink);background:none}
+.tj-legend{list-style:none;margin:6px 0 0;padding:0;display:grid;grid-template-columns:1fr;gap:4px}
+.tj-legend li{display:grid;grid-template-columns:18px auto 1fr;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--rec-line);font:12px/1.6 var(--font);color:var(--rec-ink)}
+.tj-legend small{color:var(--rec-muted);font-size:10.5px;text-align:start}
+.tj-swatch{width:14px;height:14px;border-radius:4px;background:currentColor}
