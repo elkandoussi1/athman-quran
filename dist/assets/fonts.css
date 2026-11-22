@@ -31,4 +31,4 @@
 @font-face{font-family:Warsh;src:url('warsh.ttf') format('truetype');font-display:swap}
 @font-face{font-family:HafsUthmani;src:url('hafs/hafs.ttf') format('truetype');font-display:swap}
 :root{--quran-font:Warsh}
-:root[data-riwaya="hafs"]{--quran-font:HafsUthmani}
+:root[data-riwaya="hafs"]{--quran-font:HafsUthmani}@font-face{font-family:'Readex Pro';font-style:normal;font-weight:160 700;font-display:swap;src:url(readex-pro.ttf) format('truetype')}

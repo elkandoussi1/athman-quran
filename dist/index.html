@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#123F35">
+  <meta name="theme-color" content="#0E1719">
+  <script>(function(d){try{d.dataset.theme=JSON.parse(localStorage.getItem('athman-theme')||'"dark"');d.dataset.accent=JSON.parse(localStorage.getItem('athman-accent')||'"mint"')}catch(e){d.dataset.theme='dark';d.dataset.accent='mint'}})(document.documentElement)</script>
   <meta name="description" content="أثمان: دليل أحزاب القرآن الكريم وأنصافها وأرباعها وأثمانها والسور، وفق التقسيم المغربي، مع البحث والقراءة برواية ورش عن نافع.">
   <title>أثمان — دليل أحزاب القرآن الكريم</title>
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
@@ -13,7 +14,7 @@
   <meta name="apple-mobile-web-app-title" content="أثمان">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="preload" href="assets/ui-font-2.ttf" as="font" type="font/ttf" crossorigin>
-  <link rel="stylesheet" href="assets/fonts.css?v=36">
+  <link rel="stylesheet" href="assets/fonts.css?v=40">
   <link rel="stylesheet" href="assets/style.css?v=36">
   <link rel="stylesheet" href="assets/responsive.css">
   <link rel="stylesheet" href="assets/theme.css">
@@ -24,6 +25,7 @@
   <link rel="stylesheet" href="assets/riwaya.css?v=36">
   <link rel="stylesheet" href="assets/ayah-tools.css?v=37">
   <link rel="stylesheet" href="assets/design.css?v=39">
+  <link rel="stylesheet" href="assets/night.css?v=40">
   <script src="assets/riwaya.js?v=36"></script>
   <script src="assets/divisions.js?v=36" defer></script>
   <script src="assets/recitation-matcher.js?v=31" defer></script>
@@ -38,7 +40,7 @@
   <script src="assets/recitation-settings.js?v=37" defer></script>
   <script src="assets/recitation-ui.js?v=39" defer></script>
   <script src="assets/study.js" defer></script>
-  <script src="assets/app.js?v=39" defer></script>
+  <script src="assets/app.js?v=40" defer></script>
   <script src="assets/riwaya-ui.js?v=36" defer></script>
   <script src="assets/pwa.js" defer></script>
 </head>
@@ -114,7 +116,7 @@
     <button class="nav-link install-entry" data-install-open><svg class="icon"><use href="#i-install"/></svg><span>تثبيت التطبيق</span></button>
   </nav>
   <div class="sidebar-bottom">
-    <div class="daily-card"><svg class="icon"><use href="#i-book"/></svg><h3>قليلٌ دائم، وأثرٌ عظيم.</h3><p>اجعل لك مع القرآن موعدًا.</p><button id="resumeSide">ابدأ رحلتك <svg class="icon"><use href="#i-arrow"/></svg></button></div>
+    <div class="accent-picker" role="radiogroup" aria-label="لون الواجهة"><span>لون الواجهة</span><button type="button" role="radio" data-accent-pick="mint" aria-label="نعناعي"></button><button type="button" role="radio" data-accent-pick="amber" aria-label="كهرماني"></button><button type="button" role="radio" data-accent-pick="coral" aria-label="مرجاني"></button></div><div class="daily-card"><svg class="icon"><use href="#i-book"/></svg><h3>قليلٌ دائم، وأثرٌ عظيم.</h3><p>اجعل لك مع القرآن موعدًا.</p><button id="resumeSide">ابدأ رحلتك <svg class="icon"><use href="#i-arrow"/></svg></button></div>
     <button class="about-link" id="aboutSide"><svg class="icon"><use href="#i-info"/></svg> عن أثمان ومصادره</button>
     <a class="sidebar-support" href="support.html"><svg class="icon" aria-hidden="true"><use href="#i-heart"/></svg><span>الدعم والمشاركة</span></a>
     <div class="riwaya"><span></span> رواية ورش عن نافع</div>
