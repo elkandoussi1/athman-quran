@@ -17,9 +17,13 @@ const overflow=page=>page.evaluate(()=>document.documentElement.scrollWidth-docu
   const page=await ctx.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(url+'/');await page.waitForSelector('.home');
   // Home dashboard.
-  assert.match(await page.locator('.home-resume').textContent(),/ابدأ القراءة/);
-  assert.equal(await page.locator('.home-actions > *').count(),4);
-  assert.match(await page.locator('.home-ring').getAttribute('aria-label'),/من 480/);
+  assert.match(await page.locator('.nx-continue').textContent(),/ابدأ القراءة/);
+  assert.equal(await page.locator('.nx-buttons > *').count(),3);
+  assert.equal(await page.locator('.nx-stats > *').count(),3);
+  assert.match(await page.locator('.nx-stats').textContent(),/0 \/ 480/,'western digits');
+  assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'dark','dark by default');
+  assert.equal(await page.evaluate(()=>document.documentElement.dataset.accent),'mint','mint accent by default');
+  assert.doesNotMatch(await page.locator('main').textContent(),/[٠-٩]/,'no Arabic-Indic digits');
   // Bottom tab bar on the phone.
   assert.equal(await page.locator('.tabbar').isVisible(),true);
   assert.equal(await page.locator('.tabbar > *').count(),5);
@@ -33,9 +37,9 @@ const overflow=page=>page.evaluate(()=>document.documentElement.scrollWidth-docu
   for(const w of [320,360,369,390]){
    await page.setViewportSize({width:w,height:780});assert(await overflow(page)<=0,`home overflows at ${w}px`);
    // v39: one-line title, eyebrow, quick actions, and search row on the phone.
-   const m=await page.evaluate(()=>{const h=s=>Math.round(document.querySelector(s).getBoundingClientRect().height);const t=s=>Math.round(document.querySelector(s).getBoundingClientRect().top);return {h1:h('.home h1'),eyebrow:h('.home-eyebrow'),actions:[...document.querySelectorAll('.home-actions>*')].map(x=>Math.round(x.getBoundingClientRect().top)),search:t('.search-box'),juz:t('.juz-select')}});
-   assert(m.h1<=48,`title wraps at ${w}px`);assert(m.eyebrow<=30,`eyebrow wraps at ${w}px`);
-   assert.equal(new Set(m.actions).size,1,`quick actions in one row at ${w}px`);assert.equal(m.search,m.juz,`search and juz on one row at ${w}px`);
+   const m=await page.evaluate(()=>{const t=s=>Math.round(document.querySelector(s).getBoundingClientRect().top);const tops=s=>[...document.querySelectorAll(s)].map(x=>Math.round(x.getBoundingClientRect().top));return {verse:Math.round(document.querySelector('.nx-verse').getBoundingClientRect().height),actions:tops('.nx-buttons>*'),stats:tops('.nx-stats>*'),search:t('.search-box'),juz:t('.juz-select')}});
+   assert(m.verse<=56,`verse wraps at ${w}px`);
+   assert.equal(new Set(m.actions).size,1,`buttons in one row at ${w}px`);assert.equal(new Set(m.stats).size,1,`stats in one row at ${w}px`);assert.equal(m.search,m.juz,`search and juz on one row at ${w}px`);
   }
   await page.setViewportSize({width:390,height:844});
   if(shots)await page.screenshot({path:path.join(shots,'v38-home.png')});
@@ -51,9 +55,9 @@ const overflow=page=>page.evaluate(()=>document.documentElement.scrollWidth-docu
   // A part opened from the index becomes the resume card.
   await page.goto(url+'/#/eighths');await page.waitForSelector('.ix-card');
   await page.locator('.ix-card').nth(2).locator('.ix-main').click();await page.waitForSelector('#recitationPage .verse');
-  await page.evaluate(()=>closeReader());await page.goto(url+'/#/');await page.waitForSelector('.home-resume');
-  assert.match(await page.locator('.home-resume').textContent(),/تابع من حيث توقفت/);
-  assert.match(await page.locator('.home-resume').textContent(),/الثمن الثالث/);
+  await page.evaluate(()=>closeReader());await page.goto(url+'/#/');await page.waitForSelector('.nx-continue');
+  assert.match(await page.locator('.nx-continue').textContent(),/تابع من حيث توقفت/);
+  assert.match(await page.locator('.nx-continue').textContent(),/الثمن 3 من 8/);
   // Hizb page.
   await page.goto(url+'/#/hizb/12');await page.waitForSelector('.eighth-card');
   assert(await overflow(page)<=0);

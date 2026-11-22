@@ -57,29 +57,31 @@ function toast(message){clearTimeout(toastTimeout);$('#toast').textContent=messa
 function updateSavedDot(){$('#savedDot').hidden=saved.size===0}
 function updateResume(){const b=$('#resumeSide');b.innerHTML=last?`متابعة موضعك الأخير ${icon('arrow')}`:`ابدأ رحلتك ${icon('arrow')}`}
 function setTheme(theme){document.documentElement.dataset.theme=theme;$('#themeButton').innerHTML=icon(theme==='dark'?'sun':'moon');$('#themeButton').setAttribute('aria-label',theme==='dark'?'تفعيل الوضع النهاري':'تفعيل الوضع الليلي')}
-setTheme(readStore('theme','light'));updateSavedDot();updateResume();
+setTheme(readStore('theme','dark'));updateSavedDot();updateResume();
 
 // v38: home dashboard — resume, progress, quick actions.
+// v40: «ليل» home — continue card, summary row, quick buttons.
 function homeResume(){
- const p=last?getPart(last.kind,last.id):null,cfg=p?PARTS[last.kind]:null;
- const title=p?p.title:D.hizbs[0].title;
- const meta=p?`${cfg.label} ${ordinal(p.pos)} · الحزب ${displayNumber(p.hizb)} · ${(p.firstEighth||p.id)===1?'الفاتحة':'سورة '+sura(p.sura)}`:'من سورة الفاتحة، أول المصحف';
- return `<button type="button" class="home-resume" data-home="resume"><span class="home-resume-icon">${icon('book')}</span><span class="home-resume-text"><small>${p?'تابع من حيث توقفت':'ابدأ القراءة'}</small><b>${esc(title)}</b><span>${meta}</span></span><span class="home-resume-go" aria-hidden="true">${icon('arrow')}</span></button>`;
+ const p=last?getPart(last.kind,last.id):null,kind=p?last.kind:'eighth',cfg=PARTS[kind],part=p||getPart('eighth',1);
+ const per={eighth:PER,quarter:PER/2,half:2}[kind]||PER,pos=Math.min(part.pos,per),pct=Math.round(pos*100/per);
+ const where=(part.firstEighth||part.id)===1?'الفاتحة':`${sura(part.sura)} ${displayNumber(part.aya)}`;
+ const head=p?'تابع من حيث توقفت':'ابدأ القراءة';
+ return `<section class="nx-continue" aria-label="${head}"><div class="nx-continue-top"><span class="nx-kicker">${head}</span><span class="nx-count">${cfg.label} ${displayNumber(pos)} من ${displayNumber(per)}</span></div><button type="button" class="nx-verse" data-home="resume" aria-label="${head}: ${esc(norm(part.title))}">${esc(part.title)}</button><div class="nx-progress-row"><div class="nx-progress" role="img" aria-label="التقدم في الحزب ${pct}٪"><span style="width:${pct}%"></span></div><span class="nx-where">الحزب ${displayNumber(part.hizb)} · ${where}</span></div><div class="nx-buttons"><button type="button" class="nx-btn nx-btn--primary" data-home="resume">${icon('book')}اقرأ</button><button type="button" class="nx-btn" data-home="listen">${icon('rec-headphones')}استمع</button><button type="button" class="nx-btn" data-home="recite-part">${icon('mic')}سمّع</button></div></section>`;
 }
 function renderHome(){
- const total=D.eighths.length,done=[...completed].filter(id=>id<=total).length,pct=total?Math.round(done*1000/total)/10:0;
- const unit=HAFS?'ربعًا':'ثمنًا',reciter=window.ATHMAN_AYAH?.reciter?.().name||'القارئ';
- const C=2*Math.PI*34,arc=(C*Math.min(1,done/total)).toFixed(1);
- return `<section class="home" aria-labelledby="homeTitle"><div class="home-cover"><div class="home-cover-text"><span class="home-eyebrow">${icon('spark')} <span class="eyebrow-long">${R.full} · ${HAFS?'مصحف المدينة':'التقسيم المغربي'}</span><span class="eyebrow-short">${R.full.replace(/ عن .*/,'')} · ${HAFS?'240 ربعًا':'480 ثمنًا'}</span></span><h1 id="homeTitle">دليلُك إلى كتابِ الله</h1><p>${HAFS?'الأحزاب وأنصافها وأرباعها':'الأحزاب وأنصافها وأرباعها وأثمانها'} والسور، مع التسميع والاستماع والتفسير.</p></div><div class="home-ring" role="img" aria-label="تمت مراجعة ${displayNumber(done)} من ${displayNumber(total)} ${unit}"><svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="34" class="home-ring-track"/><circle cx="40" cy="40" r="34" class="home-ring-value" stroke-dasharray="${arc} ${C.toFixed(1)}"/></svg><span><b>${displayNumber(done)}</b><small>من ${displayNumber(total)}</small></span></div></div><div id="homeResume">${homeResume()}</div><div class="home-actions"><button type="button" data-home="recite"><span class="home-action-icon">${icon('mic')}</span><b>تسميع</b><small>من أي آية</small></button><button type="button" data-home="listen"><span class="home-action-icon">${icon('rec-headphones')}</span><b>استماع</b><small>${esc(reciter)}</small></button><a href="#/surahs"><span class="home-action-icon">${icon('book')}</span><b>السور</b><small>114 سورة</small></a><button type="button" data-home="journal"><span class="home-action-icon">${icon('check')}</span><b>المراجعة</b><small>${pct?pct+'% من المصحف':'سجّل تقدمك'}</small></button></div></section>`;
+ const total=D.eighths.length,done=[...completed].filter(id=>id<=total).length,unit=HAFS?'ربعًا':'ثمنًا';
+ const reciter=window.ATHMAN_AYAH?.reciter?.().name||'القارئ';
+ return `<section class="home nx-home" aria-label="الرئيسية"><div id="homeResume">${homeResume()}</div><div class="nx-stats"><button type="button" data-home="journal"><b>${displayNumber(done)}<small> / ${displayNumber(total)}</small></b><span>${unit} مراجَعًا</span></button><a href="#/saved"><b>${displayNumber(saved.size)}</b><span>مواضع محفوظة</span></a><button type="button" data-home="listen"><b class="nx-stat-name">${esc(reciter.split(' ').slice(-1)[0])}</b><span>القارئ</span></button></div></section>`;
 }
 function bindHome(){
- $$('[data-home]').forEach(b=>b.addEventListener('click',async()=>{
-  const k=b.dataset.home;
-  if(k==='resume'){if(last)openPart(last.kind,last.id);else openPart('eighth',1)}
+ $$('[data-home]').forEach(b=>{if(b.dataset.bound)return;b.dataset.bound='1';b.addEventListener('click',async()=>{
+  const k=b.dataset.home,go=()=>last?openPart(last.kind,last.id):openPart('eighth',1);
+  if(k==='resume')go();
   else if(k==='recite')$('#listenAnywhere').click();
   else if(k==='journal')$('#practiceOpen').click();
-  else if(k==='listen'){await (last?openPart(last.kind,last.id):openPart('eighth',1));setTimeout(()=>$('#recitationPlayer')?.click(),120)}
- }));
+  else if(k==='listen'){await go();setTimeout(()=>$('#recitationPlayer')?.click(),150)}
+  else if(k==='recite-part'){await go();setTimeout(()=>{const l=$('#recitationListen');if(l&&!/إيقاف/.test(l.getAttribute('aria-label')||''))l.click()},150)}
+ })});
 }
 function refreshHome(){const box=$('#homeResume');if(box){box.innerHTML=homeResume();bindHome()}}
 function browseNav(){return `<nav class="browse-sections" aria-label="تقسيمات القرآن"><a class="selected" href="#/">${icon('grid')}<span>الأحزاب</span><b>60</b></a><a href="#/halves">${icon('half')}<span>الأنصاف</span><b>120</b></a>${HAFS?`<a href="#/eighths">${icon('quarter')}<span>الأرباع</span><b>240</b></a>`:`<a href="#/quarters">${icon('quarter')}<span>الأرباع</span><b>240</b></a><a href="#/eighths">${icon('layers')}<span>الأثمان</span><b>480</b></a>`}<a href="#/surahs">${icon('book')}<span>السور</span><b>114</b></a></nav>`}
@@ -323,6 +325,10 @@ function openJournal(){closeMenu();recitationController?.pause();if(!studyPanel)
 $('#practiceOpen').addEventListener('click',openJournal);
 $$('[data-tab-action]').forEach(b=>b.addEventListener('click',()=>b.dataset.tabAction==='recite'?$('#listenAnywhere').click():$('#menuButton').click()));
 $('#listenAnywhere').addEventListener('click',()=>openPart(last?.kind||'eighth',last?.id||1,{listen:true}));
+// v40: interface accent (mint by default, amber, coral).
+function setAccent(a){if(!['mint','amber','coral'].includes(a))a='mint';document.documentElement.dataset.accent=a;$$('[data-accent-pick]').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.accentPick===a)))}
+setAccent(readStore('accent','mint'));
+$$('[data-accent-pick]').forEach(b=>b.addEventListener('click',()=>{setAccent(b.dataset.accentPick);store('accent',b.dataset.accentPick)}));
 $('#themeButton').addEventListener('click',()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';setTheme(theme);store('theme',theme)});
 $('#menuButton').setAttribute('aria-expanded','false');$('#menuButton').setAttribute('aria-controls','sidebar');
 $('#menuButton').addEventListener('click',()=>{const open=!$('#sidebar').classList.contains('open');$('#sidebar').classList.toggle('open',open);$('#mobileShade').classList.toggle('show',open);$('#menuButton').setAttribute('aria-expanded',String(open));syncSidebar()});$('#mobileShade').addEventListener('click',closeMenu);
