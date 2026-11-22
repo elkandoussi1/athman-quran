@@ -261,7 +261,6 @@ body .footer{margin:10px 32px 0;border-top:1px solid var(--line-2);color:var(--m
    القارئ: الرأس والشريط السفلي ولوحة الإعدادات
    ===================================================================== */
 .recitation-reader .recitation-header .icon-button,.recitation-reader .recitation-header-button{border-radius:12px}
-.recitation-reader .recitation-header [href*="support"] .icon,.recitation-reader .recitation-header .rec-gift{filter:grayscale(1) sepia(.5) saturate(1.6);opacity:.85}
 
 /* اللوحة: ورقة واحدة نظيفة */
 .recitation-reader .recitation-settings.settings-tabbed{background:var(--rec-bg);box-shadow:0 -18px 40px #0000002e}

@@ -94,6 +94,22 @@ const overflow=page=>page.evaluate(()=>document.documentElement.scrollWidth-docu
   if(shots)await dp.screenshot({path:path.join(shots,'v38-desktop.png')});
   await dp.evaluate(()=>{localStorage.setItem('athman-theme','"dark"')});await dp.reload();await dp.waitForSelector('.home');
   if(shots)await dp.screenshot({path:path.join(shots,'v38-desktop-dark.png')});
+  // v41: light hizb hero is readable; search sits in the heading row; wide screens use the space.
+  await dp.evaluate(()=>{localStorage.setItem('athman-theme','"light"')});await dp.reload();await dp.waitForSelector('.home');
+  const row=await dp.evaluate(()=>{const r=s=>document.querySelector(s).getBoundingClientRect();const t=r('.section-heading h2'),q=r('.section-heading .search-box');return Math.abs((t.top+t.bottom)/2-(q.top+q.bottom)/2)});
+  assert(row<30,'search box shares the heading row on desktop');
+  await dp.goto(url+'/#/hizb/1');await dp.waitForSelector('.detail-hero');
+  const ratio=await dp.evaluate(()=>{const lum=c=>{const m=c.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=.03928?v/12.92:((v+.055)/1.055)**2.4});return .2126*m[0]+.7152*m[1]+.0722*m[2]};const h=document.querySelector('.detail-hero'),t=h.querySelector('.detail-title');const a=lum(getComputedStyle(t).color),b=lum(getComputedStyle(h).backgroundColor);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05)});
+  assert(ratio>=7,`hizb title contrast ${ratio.toFixed(1)}`);
+  await dp.setViewportSize({width:1920,height:1080});await dp.goto(url+'/#/');await dp.waitForSelector('.ix-card');
+  const cols=await dp.evaluate(()=>getComputedStyle(document.querySelector('#cardsGrid')).gridTemplateColumns.split(' ').length);
+  assert(cols>=4,`wide screens show ${cols} columns`);
+  await dp.evaluate(()=>openSurah(1));await dp.waitForSelector('#recitationPage .verse');
+  const pageW=await dp.evaluate(()=>document.querySelector('#recitationPage').getBoundingClientRect().width);
+  assert(pageW>1000,`mushaf page uses the wide screen (${pageW}px)`);
+  assert.equal(await dp.evaluate(()=>getComputedStyle(document.querySelector('.recitation-header a[href="support.html"] .icon')).filter),'none','support gift keeps its colours');
+  await dp.goto(url+'/support.html');
+  assert.match(await dp.evaluate(()=>getComputedStyle(document.querySelector('#openBank')).backgroundImage),/gradient/,'support button stands out');
   await dctx.close();
   console.log('PASS: home dashboard, bottom tab bar, compact cards, resume card, settings rows with switches, no overflow 320px–desktop.');
  }finally{await browser.close();server.close()}
