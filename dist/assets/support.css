@@ -5,3 +5,8 @@ dialog{border:1px solid #dfe6d8;border-radius:20px;background:var(--paper);color
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
 
 .bank-status{min-height:22px;margin:-7px 0 12px;text-align:center;font-size:10px;line-height:1.9;color:var(--green)}
+/* v41: زر المساندة بلون مميز */
+body.support-page .support-button,body .support-button{position:relative;overflow:hidden;background:linear-gradient(135deg,#F2CD7A 0%,#E3B25E 45%,#C9913A 100%);color:#2A1A04;border:1px solid #B9843A;font-weight:700;box-shadow:0 8px 20px #C9913A40,inset 0 1px 0 #FFF5D9}
+body.support-page .support-button .icon,body .support-button .icon{color:#9E2B25;fill:#9E2B25}
+body.support-page .support-button:hover,body .support-button:hover{background:linear-gradient(135deg,#F5D68C 0%,#E8BB6A 45%,#D09A44 100%);transform:translateY(-1px)}
+body .support-button:focus-visible{outline:3px solid #9E2B25;outline-offset:3px}

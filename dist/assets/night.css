@@ -156,3 +156,66 @@ html[data-accent="coral"] .tabbar-fab .icon{box-shadow:0 6px 18px #E58E6B55!impo
 .accent-picker button[aria-checked="true"]{border-color:var(--ink)}
 .accent-picker button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 html[data-accent="mint"]:not([data-theme="dark"]){--mint:#A8741A}
+
+/* =====================================================================
+   v41 — التباين والتجاوب مع كل الشاشات
+   ===================================================================== */
+/* صفحة الحزب: بطاقة الرأس واضحة في الوضعين (كانت خضراء بنص داكن في النهاري) */
+:root body .detail-hero{background:var(--paper);color:var(--ink);border:1px solid var(--line);box-shadow:none}
+:root body .detail-hero .detail-title{color:var(--ink)}
+:root body .detail-hero .detail-kicker{color:var(--gold)}
+:root body .detail-hero .detail-number{color:var(--gold);background:var(--chip)}
+:root body .detail-hero .detail-meta span{padding:2px 10px;border:1px solid var(--line);border-radius:99px;background:var(--chip);color:var(--muted)}
+:root body .card-open,:root body .read-action{font-weight:600}
+
+/* الشريط الجانبي: لا التفاف للعناوين */
+body .nav-link{white-space:nowrap}
+body .nav-link span,body .nav-link{overflow:hidden;text-overflow:ellipsis}
+body .nav-link{font-size:13.5px}
+
+/* بطاقة «تابع»: البداية في سطر العنوان نفسه */
+.nx-continue-top{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px}
+.nx-continue-top .nx-verse{min-width:0;font-size:24px;line-height:1.8}
+/* بطاقات الملخص: الرقم وعنوانه في سطر واحد */
+@media (min-width:761px){
+  .nx-stats>*{flex-direction:row;align-items:baseline;gap:8px;padding:12px 16px;white-space:nowrap}
+  .nx-stats>* span{font-size:12.5px;overflow:hidden;text-overflow:ellipsis}
+  .nx-stats .nx-stat-name{order:2;font-size:16px}
+}
+@media (max-width:760px){
+  .nx-continue-top{grid-template-columns:minmax(0,1fr) auto;row-gap:2px}
+  .nx-continue-top .nx-verse{grid-column:1/-1;grid-row:2;font-size:23px}
+}
+
+/* رأس الفهرس: العنوان والبحث وأداة العرض في سطر واحد */
+body .section-heading.has-search{display:flex;align-items:center;gap:14px;flex-wrap:nowrap}
+body .section-heading.has-search>.section-heading-text,body .section-heading.has-search>.section-caption{flex:0 0 auto}
+body .section-heading.has-search>.search-panel{flex:1 1 auto;min-width:0;margin:0;flex-direction:row;align-items:stretch;gap:8px}
+body .section-heading.has-search>.search-panel .search-box{min-height:46px}
+body .section-heading.has-search>.search-panel .juz-select{min-height:46px;height:auto}
+body .section-heading.has-search>.section-tools,body .section-heading.has-search>.view-toggle{flex:0 0 auto}
+@media (max-width:900px){
+  body .section-heading.has-search{flex-wrap:wrap}
+  body .section-heading.has-search>.section-heading-text,body .section-heading.has-search>.section-caption{flex:1 1 auto}
+  body .section-heading.has-search>.search-panel{order:3;flex:1 1 100%}
+}
+
+/* الشاشات الواسعة: يتسع المحتوى بدل الفراغ */
+@media (min-width:761px){
+  body main{max-width:min(1760px,100%);padding-inline:clamp(20px,3vw,48px)}
+  body .cards-grid:not(.list-view){grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}
+}
+@media (min-width:761px) and (max-width:1100px){body .sidebar{width:236px}body .app-shell{margin-right:236px}}
+
+/* القارئ على الحاسوب: صفحة المصحف وأدواتها تتسع مع الشاشة */
+@media (min-width:1200px){
+  .recitation-reader{--page-w:min(1180px,86vw)}
+  .recitation-reader .recitation-page{max-width:var(--page-w)}
+  .recitation-reader .recitation-page-scroll{max-width:none;padding-inline:max(10px,calc((100% - var(--page-w))/2))}
+  .recitation-reader .recitation-dock{padding-inline:max(16px,calc((100% - var(--page-w))/2))}
+  .recitation-reader .recitation-popover{inset-inline:max(12px,calc((100% - var(--page-w))/2))}
+}
+@media (min-width:1600px){.recitation-reader{--page-w:min(1320px,82vw)}}
+
+.recitation-reader .recitation-menu{inset-inline:auto;right:0;left:auto}
+@media (min-width:1200px){.recitation-reader .recitation-header{grid-template-columns:44px minmax(0,560px) 44px 44px 44px;gap:22px}}
