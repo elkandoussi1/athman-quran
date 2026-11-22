@@ -10,6 +10,7 @@
  const TABS=[
   {id:'recite',label:'التسميع',icon:'mic'},
   {id:'display',label:'المصحف',icon:'book'},
+  {id:'listen',label:'الاستماع والتفسير',icon:'headphones'},
   {id:'alerts',label:'التنبيهات',icon:'bell'},
   {id:'service',label:'خدمة الصوت',icon:'wave'},
   {id:'advanced',label:'متقدم',icon:'tool'}
@@ -21,6 +22,7 @@
   wave:'<path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2"/>',
   tool:'<path d="M14.5 5.5a4 4 0 0 0-5 5L4 16l4 4 5.5-5.5a4 4 0 0 0 5-5l-2.5 2.5-2.5-.5-.5-2.5Z"/>',
   play:'<path d="M8 5v14l11-7Z"/>',
+  headphones:'<path d="M4 14v-2a8 8 0 0 1 16 0v2"/><path d="M4 14h3v6H5a1 1 0 0 1-1-1zM20 14h-3v6h2a1 1 0 0 0 1-1z"/>',
   book:'<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5Zm0 15A2.5 2.5 0 0 1 6.5 18H20v3H6.5A2.5 2.5 0 0 1 4 20.5Z"/>'
  };
  const svg=name=>`<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
@@ -113,6 +115,7 @@
    panels[tab.id]=section;body.append(section);
   }
   {const wrap=document.createElement('div');wrap.innerHTML=riwayaSection();panels.display.append(...wrap.children)}
+  if(root.ATHMAN_AYAH)panels.listen.append(root.ATHMAN_AYAH.settingsNodes());else{panels.listen.remove();tablist.querySelector('#settingsTab-listen')?.remove()}
   {const wrap=document.createElement('div');wrap.innerHTML=speedSection(ondevice);panels.service.append(...wrap.children)}
   if(tajweed){const wrap=document.createElement('div');wrap.innerHTML=tajweedSection(tajweed);panels.display.append(...wrap.children)}
   if(sounds&&soundPrefs){const wrap=document.createElement('div');wrap.innerHTML=soundSection(sounds,soundPrefs);panels.alerts.append(...wrap.children);oldSound?.remove()}
@@ -142,5 +145,5 @@
   if(persist)try{root.localStorage.setItem(STORE,id)}catch{}
   if(focus)panel.querySelector('#settingsTab-'+id)?.focus();
  }
- return {version:36,TABS,organize,show,sync,segment};
+ return {version:37,TABS,organize,show,sync,segment};
 });
