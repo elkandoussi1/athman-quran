@@ -30,7 +30,13 @@ const overflow=page=>page.evaluate(()=>document.documentElement.scrollWidth-docu
   const h=await page.locator('#cardsGrid .ix-card').first().boundingBox();assert(h.height<130,`card height ${h.height}`);
   await page.locator('#cardsGrid .ix-card').first().locator('[data-save]').click();
   assert.equal(await page.locator('#cardsGrid .ix-card').first().locator('[data-save]').getAttribute('aria-pressed'),'true');
-  for(const w of [320,360,390]){await page.setViewportSize({width:w,height:780});assert(await overflow(page)<=0,`home overflows at ${w}px`)}
+  for(const w of [320,360,369,390]){
+   await page.setViewportSize({width:w,height:780});assert(await overflow(page)<=0,`home overflows at ${w}px`);
+   // v39: one-line title, eyebrow, quick actions, and search row on the phone.
+   const m=await page.evaluate(()=>{const h=s=>Math.round(document.querySelector(s).getBoundingClientRect().height);const t=s=>Math.round(document.querySelector(s).getBoundingClientRect().top);return {h1:h('.home h1'),eyebrow:h('.home-eyebrow'),actions:[...document.querySelectorAll('.home-actions>*')].map(x=>Math.round(x.getBoundingClientRect().top)),search:t('.search-box'),juz:t('.juz-select')}});
+   assert(m.h1<=48,`title wraps at ${w}px`);assert(m.eyebrow<=30,`eyebrow wraps at ${w}px`);
+   assert.equal(new Set(m.actions).size,1,`quick actions in one row at ${w}px`);assert.equal(m.search,m.juz,`search and juz on one row at ${w}px`);
+  }
   await page.setViewportSize({width:390,height:844});
   if(shots)await page.screenshot({path:path.join(shots,'v38-home.png')});
   // Tabs: surahs, saved, «المزيد».
@@ -52,6 +58,16 @@ const overflow=page=>page.evaluate(()=>document.documentElement.scrollWidth-docu
   await page.goto(url+'/#/hizb/12');await page.waitForSelector('.eighth-card');
   assert(await overflow(page)<=0);
   if(shots)await page.screenshot({path:path.join(shots,'v38-hizb.png')});
+  // v39: the reader menu is a designed side drawer.
+  await page.goto(url+'/#/');await page.evaluate(()=>openSurah(2));await page.waitForSelector('#recitationPage .verse');
+  await page.locator('#recitationMenu').click();await page.waitForSelector('#recitationMenuPanel:not([hidden]) .rmenu-head');
+  const drawer=await page.locator('#recitationMenuPanel').boundingBox();
+  assert(drawer.height>=780&&drawer.x+drawer.width>=389,'drawer spans the height from the right edge');
+  assert.equal(await page.locator('#recitationMenuPanel .rmenu-list a').count(),6);
+  assert.equal(await page.locator('#recitationMenuPanel .rmenu-tile').count(),2);
+  if(shots)await page.screenshot({path:path.join(shots,'v39-reader-menu.png')});
+  await page.locator('#recitationMenuClose').click();assert.equal(await page.locator('#recitationMenuPanel').isHidden(),true);
+  await page.evaluate(()=>closeReader());
   // The FAB opens the reader and starts listening.
   await page.goto(url+'/#/');await page.waitForSelector('.tabbar-fab');
   await page.locator('.tabbar-fab').click();await page.waitForSelector('#recitationPage .verse');
